@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Workspace, Project, User, Notification, Task, Snippet, TaskComment } from '../types';
 import { workspaces as mockWorkspaces, projects as mockProjects, currentUser, tasks as mockTasks, snippets as mockSnippets, notifications as mockNotifs } from '../data/mock';
+import { mockFiles } from '../data/mockFiles';
 
 interface AuthState {
   user: User | null;
@@ -45,8 +46,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   fetchProjects: (workspaceId) => set({
     projects: mockProjects.filter(p => p.workspaceId === workspaceId),
   }),
-  addWorkspace: (ws) => set((state) => ({ workspaces: [...state.workspaces, ws] })),
-  addProject: (project) => set((state) => ({ projects: [...state.projects, project] })),
+  addWorkspace: (ws) => set((state) => {
+    mockWorkspaces.push(ws);
+    return { workspaces: [...state.workspaces, ws] };
+  }),
+  addProject: (project) => set((state) => {
+    mockProjects.push(project);
+    return { projects: [...state.projects, project] };
+  }),
 }));
 
 interface TaskState {
@@ -115,17 +122,59 @@ interface UIState {
   sidebarOpen: boolean;
   mobileSidebarOpen: boolean;
   theme: 'light' | 'dark';
+  aiSidebarOpen: boolean;
+  activeAiModel: string;
+  activeAiTab: 'assistant' | 'review';
+  openFiles: string[];
+  activeFile: string | null;
+  fileContents: Record<string, string>;
   toggleSidebar: () => void;
   toggleMobileSidebar: () => void;
   setTheme: (theme: 'light' | 'dark') => void;
+  toggleAiSidebar: () => void;
+  setAiSidebarOpen: (open: boolean) => void;
+  setActiveAiModel: (model: string) => void;
+  setActiveAiTab: (tab: 'assistant' | 'review') => void;
+  openFile: (fileName: string) => void;
+  closeFile: (fileName: string) => void;
+  setActiveFile: (fileName: string | null) => void;
+  updateFileContent: (fileName: string, content: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
   mobileSidebarOpen: false,
   theme: 'light',
+  aiSidebarOpen: false,
+  activeAiModel: 'gemini-2.5-pro',
+  activeAiTab: 'assistant',
+  openFiles: ['App.tsx', 'README.md'],
+  activeFile: 'App.tsx',
+  fileContents: mockFiles,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   toggleMobileSidebar: () => set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
   setTheme: (theme) => set({ theme }),
+  toggleAiSidebar: () => set((state) => ({ aiSidebarOpen: !state.aiSidebarOpen })),
+  setAiSidebarOpen: (open) => set({ aiSidebarOpen: open }),
+  setActiveAiModel: (model) => set({ activeAiModel: model }),
+  setActiveAiTab: (tab) => set({ activeAiTab: tab }),
+  openFile: (fileName) => set((state) => {
+    const openFiles = state.openFiles.includes(fileName)
+      ? state.openFiles
+      : [...state.openFiles, fileName];
+    return { openFiles, activeFile: fileName };
+  }),
+  closeFile: (fileName) => set((state) => {
+    const openFiles = state.openFiles.filter((f) => f !== fileName);
+    let activeFile = state.activeFile;
+    if (activeFile === fileName) {
+      activeFile = openFiles.length > 0 ? openFiles[openFiles.length - 1] : null;
+    }
+    return { openFiles, activeFile };
+  }),
+  setActiveFile: (fileName) => set({ activeFile: fileName }),
+  updateFileContent: (fileName, content) => set((state) => ({
+    fileContents: { ...state.fileContents, [fileName]: content }
+  })),
 }));
 

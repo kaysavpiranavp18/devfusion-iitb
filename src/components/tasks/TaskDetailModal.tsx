@@ -1,14 +1,10 @@
-import { useState } from 'react';
-import { Calendar, User, MessageSquare, Paperclip, Clock, Send } from 'lucide-react';
-import { clsx } from 'clsx';
+import { useState, useEffect } from 'react';
+import { MessageSquare, Paperclip, Send, X, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Task, TaskComment } from '../../types';
 import { useAuthStore, useTaskStore } from '../../store';
-import { Modal } from '../ui/Modal';
 import { Avatar } from '../ui/Avatar';
-import { Badge } from '../ui/Badge';
-import { PriorityBadge } from '../ui/Badge';
-import { getUserById } from '../../data/mock';
+import { getUserById, users } from '../../data/mock';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -17,8 +13,17 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
   const { user } = useAuthStore();
-  const { addComment } = useTaskStore();
+  const { addComment, updateTask } = useTaskStore();
   const [comment, setComment] = useState('');
+
+  // Handle Escape key closure
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleSubmitComment = () => {
     if (!comment.trim() || !user) return;
@@ -35,122 +40,216 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
     setComment('');
   };
 
-  const assignee = task.assigneeId ? getUserById(task.assigneeId) : null;
+  // Assignee information is query-loaded dynamically in selection
 
   return (
-    <Modal open onClose={onClose} title={task.title} size="lg">
-      <div className="space-y-6">
-        {/* Meta row */}
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <PriorityBadge priority={task.priority} />
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200" 
+        onClick={onClose} 
+      />
+
+      {/* Drawer Panel */}
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[460px] bg-surface-card border-l border-hairline shadow-2xl flex flex-col h-full select-none animate-in">
+        
+        {/* Top 4px Accent Bar */}
+        <div className="h-[4px] w-full bg-primary shrink-0" />
+
+        {/* Header */}
+        <div className="p-4 border-b border-hairline flex items-center justify-between shrink-0 bg-canvas/30">
+          <input
+            type="text"
+            value={task.title}
+            onChange={(e) => updateTask(task.id, { title: e.target.value })}
+            className="text-sm font-bold text-ink bg-transparent border-0 focus:ring-1 focus:ring-primary/40 focus:bg-canvas rounded px-2.5 py-1.5 flex-1 mr-4 focus:outline-none"
+            placeholder="Task Title"
+          />
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-surface-card text-muted hover:text-ink transition-colors cursor-pointer rounded"
+            title="Close details (Esc)"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          
+          {/* Section: Details (2x2 Grid) */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Details</span>
+            <div className="grid grid-cols-2 gap-4 bg-canvas/20 p-4 rounded-xl border border-hairline">
+              {/* Status Selector */}
+              <div>
+                <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1">Status</label>
+                <select
+                  value={task.status}
+                  onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
+                  className="w-full bg-canvas border border-hairline rounded px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+                >
+                  <option value="todo">To Do</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="in_review">In Review</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+
+              {/* Priority Selector */}
+              <div>
+                <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1">Priority</label>
+                <select
+                  value={task.priority}
+                  onChange={(e) => updateTask(task.id, { priority: e.target.value as Task['priority'] })}
+                  className="w-full bg-canvas border border-hairline rounded px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+                >
+                  <option value="p0">P0 Priority (Critical)</option>
+                  <option value="p1">P1 Priority (High)</option>
+                  <option value="p2">P2 Priority (Medium)</option>
+                  <option value="p3">P3 Priority (Low)</option>
+                </select>
+              </div>
+
+              {/* Assignee Selector */}
+              <div>
+                <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1">Assignee</label>
+                <select
+                  value={task.assigneeId || ''}
+                  onChange={(e) => updateTask(task.id, { assigneeId: e.target.value || undefined })}
+                  className="w-full bg-canvas border border-hairline rounded px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+                >
+                  <option value="">Unassigned</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Due Date Picker */}
+              <div>
+                <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={task.dueDate ? task.dueDate.split('T')[0] : ''}
+                  onChange={(e) => updateTask(task.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                  className="w-full bg-canvas border border-hairline rounded px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+                />
+              </div>
+            </div>
           </div>
-          {task.labels.map(label => (
-            <Badge key={label} variant="primary">{label}</Badge>
-          ))}
-          {task.dueDate && (
-            <div className="flex items-center gap-1.5 text-sm text-muted">
-              <Calendar size={14} />
-              <span className={clsx(new Date(task.dueDate) < new Date() && 'text-semantic-danger')}>
-                Due {format(new Date(task.dueDate), 'MMM d, yyyy')}
-              </span>
+
+          {/* Section: Content */}
+          <div className="space-y-4">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-widest block">Content</span>
+
+            {/* Labels Editor */}
+            <div>
+              <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1.5">Labels (comma-separated)</label>
+              <input
+                type="text"
+                value={task.labels.join(', ')}
+                onChange={(e) => updateTask(task.id, { labels: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                placeholder="e.g. Frontend, Bug, Refactor"
+                className="w-full bg-canvas border border-hairline rounded px-3 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted"
+              />
+            </div>
+
+            {/* Description Editor */}
+            <div>
+              <label className="block text-[9px] font-bold text-muted uppercase tracking-wider mb-1.5">Description</label>
+              <textarea
+                value={task.description}
+                onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                placeholder="Add a detailed description for this task..."
+                className="w-full bg-canvas border border-hairline rounded p-3 text-xs text-ink min-h-[100px] focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y placeholder:text-muted"
+              />
+            </div>
+          </div>
+
+          {/* Attachments Section */}
+          {task.attachments.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-bold text-ink uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Paperclip size={12} /> Attachments ({task.attachments.length})
+              </h4>
+              <div className="flex gap-2 flex-wrap">
+                {task.attachments.map((att, i) => (
+                  <div key={i} className="px-3 py-1.5 bg-canvas border border-hairline text-xs rounded-lg text-muted flex items-center gap-1">
+                    <span className="truncate max-w-[120px]">{att}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Assignee */}
-        {assignee && (
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <User size={14} className="text-muted" />
-            <span>Assignee: </span>
-            <div className="flex items-center gap-1.5">
-              <Avatar src={assignee.avatar} name={assignee.name} size="sm" />
-              <span className="font-medium">{assignee.name}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Description */}
-        <div>
-          <h4 className="text-sm font-bold text-ink mb-2">Description</h4>
-          <p className="text-sm text-muted leading-relaxed font-light">{task.description}</p>
-        </div>
-
-        {/* Attachments */}
-        {task.attachments.length > 0 && (
-          <div>
-            <h4 className="text-sm font-bold text-ink mb-2 flex items-center gap-1.5">
-              <Paperclip size={14} /> Attachments ({task.attachments.length})
+          {/* COMMENTS / Activity */}
+          <div className="pt-4 border-t border-hairline">
+            <h4 className="text-[10px] font-bold text-ink uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <MessageSquare size={12} /> COMMENTS ({task.comments.length})
             </h4>
-            <div className="flex gap-2">
-              {task.attachments.map((att, i) => (
-                <div key={i} className="px-3 py-2 bg-surface-elevated border border-hairline text-sm text-muted">
-                  {att}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Activity / Comments */}
-        <div>
-          <h4 className="text-sm font-bold text-ink mb-3 flex items-center gap-1.5 uppercase tracking-wider">
-            <MessageSquare size={14} /> Activity ({task.comments.length})
-          </h4>
-
-          <div className="space-y-3 mb-4">
-            {task.comments.map(c => {
-              const commentUser = getUserById(c.userId);
-              return (
-                <div key={c.id} className="flex gap-3">
-                  <Avatar src={commentUser?.avatar} name={commentUser?.name || 'U'} size="md" className="mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold text-ink">{commentUser?.name}</span>
-                      <span className="text-xs text-muted">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
+            {/* Comment List */}
+            <div className="space-y-4 mb-4">
+              {task.comments.map(c => {
+                const commentUser = getUserById(c.userId);
+                return (
+                  <div key={c.id} className="flex gap-3 text-left">
+                    <Avatar src={commentUser?.avatar} name={commentUser?.name || 'U'} size="sm" className="w-6 h-6 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-ink">{commentUser?.name}</span>
+                        <span className="text-[10px] text-muted">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
+                      </div>
+                      <p className="text-xs text-body leading-relaxed">{c.content}</p>
                     </div>
-                    <p className="text-sm text-muted font-light">{c.content}</p>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* Comment input */}
-          <div className="flex gap-3">
-            <Avatar src={user?.avatar} name={user?.name || 'U'} size="md" className="mt-1" />
-            <div className="flex-1 relative">
-              <textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Write a comment... Use @ to mention someone"
-                className="w-full border border-hairline bg-surface-card text-ink placeholder:text-muted px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmitComment();
-                  }
-                }}
-              />
-              <button
-                onClick={handleSubmitComment}
-                disabled={!comment.trim()}
-                className="absolute bottom-2 right-2 p-1.5 bg-ink text-canvas hover:bg-body disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send size={14} />
-              </button>
+            {/* Comment Input styled container */}
+            <div className="flex gap-3 items-start bg-canvas/30 p-3.5 border border-hairline rounded-xl">
+              <Avatar src={user?.avatar} name={user?.name || 'U'} size="sm" className="w-7 h-7 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <textarea
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  placeholder="Write a comment... Use @ to mention someone"
+                  rows={2}
+                  className="w-full border border-hairline rounded-lg bg-canvas text-ink placeholder:text-muted p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-none transition-all"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmitComment();
+                    }
+                  }}
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSubmitComment}
+                    disabled={!comment.trim()}
+                    className="flex items-center gap-1 px-3.5 py-1.5 bg-primary text-white hover:bg-primary/95 font-semibold text-xs rounded-lg transition-all hover:translate-y-[-1px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Send size={11} />
+                    <span>Send</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Metadata */}          <div className="flex items-center gap-4 text-xs text-muted pt-4 border-t border-hairline">
+        {/* Footer Meta */}
+        <div className="p-3 border-t border-hairline bg-canvas/30 flex items-center justify-between text-[10px] text-muted shrink-0">
           <div className="flex items-center gap-1">
-            <Clock size={12} />
-            Created {format(new Date(task.createdAt), 'MMM d, yyyy')}
+            <Clock size={11} />
+            <span>Created {format(new Date(task.createdAt), 'MMM d, yyyy')}</span>
           </div>
-          <div>Updated {format(new Date(task.updatedAt), 'MMM d, h:mm a')}</div>
+          <span>Updated {format(new Date(task.updatedAt), 'MMM d, h:mm a')}</span>
         </div>
+
       </div>
-    </Modal>
+    </>
   );
 }

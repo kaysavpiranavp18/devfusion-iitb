@@ -1,43 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   /* ── Brand & Accent ───────────────────────────────────────────── */
-  --color-primary: #ffffff;
-  --color-m-blue-light: #0066b1;
-  --color-m-blue-dark: #1c69d4;
-  --color-m-red: #e22718;
-  --color-electric-blue: #0653b6;
+  --color-primary: #6366f1;
+  --color-m-blue-light: #6366f1;
+  --color-m-blue-dark: #4f46e5;
+  --color-m-red: #ef4444;
+  --color-electric-blue: #6366f1;
 
   /* ── Surface ladder ───────────────────────────────────────────── */
-  --color-canvas: #000000;
-  --color-surface-soft: #0d0d0d;
-  --color-surface-card: #1a1a1a;
-  --color-surface-elevated: #262626;
-  --color-carbon-gray: #2b2b2b;
+  --color-canvas: #0a0a0f;
+  --color-surface-soft: #0e0e15;
+  --color-surface-card: #111118;
+  --color-surface-elevated: #161622;
+  --color-carbon-gray: #1b1b26;
 
   /* ── Hairline borders ─────────────────────────────────────────── */
-  --color-hairline: #3c3c3c;
+  --color-hairline: #1e1e2e;
 
   /* ── Text ─────────────────────────────────────────────────────── */
-  --color-ink: #ffffff;
-  --color-body: #bbbbbb;
-  --color-body-strong: #e6e6e6;
-  --color-muted: #7e7e7e;
+  --color-ink: #f1f5f9;
+  --color-body: #94a3b8;
+  --color-body-strong: #f1f5f9;
+  --color-muted: #64748b;
 
   /* ── Semantic ─────────────────────────────────────────────────── */
-  --color-semantic-success: #0fa336;
-  --color-semantic-danger: #e22718;
-  --color-semantic-warning: #f4b400;
+  --color-semantic-success: #22c55e;
+  --color-semantic-danger: #ef4444;
+  --color-semantic-warning: #f59e0b;
 
   /* ── Typography ────────────────────────────────────────────────── */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* ── Border radius (BMW: mostly 0, circular for icons) ────────── */
-  --radius-none: 0px;
-  --radius-xs: 2px;
-  --radius-sm: 4px;
+  /* ── Border radius ────────────────────────────────────────── */
+  --radius-xl: 12px;
+  --radius-lg: 8px;
   --radius-md: 6px;
+  --radius-sm: 4px;
   --radius-full: 9999px;
 }
 
@@ -58,18 +59,71 @@ body {
 
 /* ── Scrollbar styling ──────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-hairline);
-  border-radius: 3px;
+  background: #1e1e2e;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
+  background: #3b3b5c;
+}
+
+/* ── Global Focus & Premium Hover Effects ──────────────────────── */
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+}
+
+button, a.btn-transition {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+button:hover:not(:disabled):not(.no-hover-lift), a.btn-transition:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+button:active:not(:disabled):not(.no-hover-lift), a.btn-transition:active {
+  transform: translateY(0);
+}
+
+.card-premium, [class*="bg-surface-card"], [class*="bg-surface-soft"] {
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-premium:hover, [class*="bg-surface-card"]:hover {
+  border-color: #3b3b5c !important;
+}
+
+/* ── Custom Animations ─────────────────────────────────────────── */
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.4; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(0.95); opacity: 0.4; }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes shimmer-effect {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-hover {
+  background: linear-gradient(120deg, #312e81 0%, #4338ca 25%, #6366f1 50%, #4338ca 75%, #312e81 100%);
+  background-size: 200% auto;
+  animation: shimmer-effect 4s linear infinite;
+  transition: filter 0.3s ease;
+}
+.shimmer-hover:hover {
+  filter: brightness(1.15);
+}
+
+.sidebar-active-glow {
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
 }
 
 /* ── Selection ──────────────────────────────────────────────────── */

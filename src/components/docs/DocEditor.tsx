@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Save, Eye, Edit3, Clock } from 'lucide-react';
+import { Save, Eye, Edit3, Heading1, Bold, Italic, List, Code } from 'lucide-react';
 import { clsx } from 'clsx';
-import { format } from 'date-fns';
 import type { DocPage } from '../../types';
 import { Button } from '../ui/Button';
 
@@ -14,7 +13,7 @@ interface DocEditorProps {
 export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
   const [content, setContent] = useState(doc.content);
   const [title, setTitle] = useState(doc.title);
-  const [mode, setMode] = useState<'edit' | 'preview' | 'history'>('edit');
+  const [mode, setMode] = useState<'edit' | 'preview'>('preview');
   const [isDirty, setIsDirty] = useState(false);
 
   const handleSave = () => {
@@ -23,26 +22,20 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
   };
 
   const toolbarItems = [
-    { label: 'H1', action: 'heading1' },
-    { label: 'H2', action: 'heading2' },
-    { label: 'B', action: 'bold', className: 'font-bold' },
-    { label: 'I', action: 'italic', className: 'italic' },
-    { label: 'Code', action: 'code', className: 'font-mono text-xs' },
-    { label: '•', action: 'bullet' },
-    { label: '1.', action: 'ordered' },
-    { label: '>', action: 'blockquote', className: 'text-lg' },
+    { icon: Heading1, action: 'heading1', label: 'Heading' },
+    { icon: Bold, action: 'bold', label: 'Bold' },
+    { icon: Italic, action: 'italic', label: 'Italic' },
+    { icon: List, action: 'bullet', label: 'List' },
+    { icon: Code, action: 'code', label: 'Code Block' },
   ];
 
   const insertFormatting = (action: string) => {
     const formatting: Record<string, string> = {
       heading1: '\n# Heading\n',
-      heading2: '\n## Heading\n',
       bold: '**bold text**',
       italic: '*italic text*',
       code: '`code`',
       bullet: '\n- Item',
-      ordered: '\n1. Item',
-      blockquote: '\n> Blockquote',
     };
     const textarea = document.querySelector('.doc-editor-textarea') as HTMLTextAreaElement;
     if (textarea) {
@@ -55,117 +48,121 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
     }
   };
 
+  const getHtml = (text: string) => {
+    // Convert markdown to HTML
+    let html = text
+      .replace(/^### (.+)$/gm, '<h3 class="text-white text-lg font-semibold my-4">$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 class="text-white text-xl font-bold my-5 border-b border-hairline pb-2">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 class="text-white text-2xl font-bold my-6">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code class="bg-surface-elevated px-1.5 py-0.5 text-xs text-white rounded font-mono">$1</code>')
+      .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-body my-1.5">$1</li>')
+      .replace(/^\d\. (.+)$/gm, '<li class="ml-4 list-decimal text-body my-1.5">$1</li>')
+      .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-primary pl-4 italic text-muted my-4">$1</blockquote>')
+      .replace(/\n\n/g, '</p><p class="my-3">');
+
+    // Wrap remaining lines that don't have block tags in p tags
+    const lines = html.split('\n');
+    const processed = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      if (/^<[a-z/]/i.test(trimmed)) return trimmed;
+      return `<p class="my-2">${line}</p>`;
+    });
+    
+    return processed.join('\n');
+  };
+
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-canvas">
       {/* Toolbar */}
       <div className="bg-surface-card border-b border-hairline px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className="text-sm text-muted hover:text-body mr-2 transition-colors"
+            className="text-sm text-muted hover:text-ink mr-3 transition-colors cursor-pointer"
           >
             ← Back
           </button>
-          <div className="flex items-center gap-1 border-r border-hairline/50 pr-2">
-            {(['edit', 'preview', 'history'] as const).map(m => (
+          <div className="flex items-center gap-1 bg-surface-elevated p-0.5 rounded-lg border border-hairline">
+            {(['edit', 'preview'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={clsx(
-                  'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  mode === m ? 'bg-white/10 text-ink' : 'text-muted hover:bg-surface-card',
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer',
+                  mode === m ? 'bg-surface-card text-ink shadow-sm' : 'text-muted hover:text-ink',
                 )}
               >
-                {m === 'edit' && <Edit3 size={14} />}
-                {m === 'preview' && <Eye size={14} />}
-                {m === 'history' && <Clock size={14} />}
+                {m === 'edit' && <Edit3 size={12} />}
+                {m === 'preview' && <Eye size={12} />}
                 {m.charAt(0).toUpperCase() + m.slice(1)}
               </button>
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isDirty && <span className="text-xs text-semantic-warning uppercase tracking-wider">Unsaved changes</span>}
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={!isDirty}>
-            <Save size={14} /> Save
+        <div className="flex items-center gap-3">
+          {isDirty && <span className="text-xs text-semantic-warning font-semibold uppercase tracking-wider">Unsaved Changes</span>}
+          <Button size="sm" onClick={handleSave} disabled={!isDirty} className="rounded-lg bg-primary hover:bg-primary/95 text-white">
+            <Save size={14} className="mr-1.5" /> Save
           </Button>
         </div>
       </div>
 
       {/* Title */}
-      <div className="px-6 py-4 bg-surface-card/50 border-b border-hairline/30 shrink-0">
-        {mode === 'edit' ? (
-          <input
-            value={title}
-            onChange={e => { setTitle(e.target.value); setIsDirty(true); }}
-            className="w-full text-2xl font-bold text-ink border-0 outline-none placeholder:text-muted bg-transparent"
-            placeholder="Document title..."
-          />
-        ) : (
-          <h1 className="text-2xl font-bold text-ink">{title}</h1>
-        )}
+      <div className="px-6 pt-6 shrink-0 bg-canvas">
+        <input
+          value={title}
+          onChange={e => { setTitle(e.target.value); setIsDirty(true); }}
+          className="w-full text-2xl font-semibold bg-transparent border-none outline-none text-[#e2e8f0] pb-3 mb-3 border-b border-[#1e1e2e] focus:ring-0"
+          placeholder="Document title..."
+        />
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div className="flex-1 overflow-auto px-6 py-2 bg-canvas">
         {mode === 'edit' && (
-          <>
+          <div className="h-full flex flex-col">
             {/* Formatting toolbar */}
-            <div className="flex items-center gap-1 mb-3 p-1 bg-surface-elevated border border-hairline w-fit">
+            <div className="bg-[#13131a] border border-[#1e1e2e] rounded-lg inline-flex p-1 gap-1 mb-4 w-fit shrink-0">
               {toolbarItems.map(item => (
                 <button
                   key={item.action}
                   onClick={() => insertFormatting(item.action)}
-                  className={clsx('px-2 py-1 text-sm hover:bg-surface-card transition-colors text-muted', item.className)}
+                  className="p-1.5 hover:bg-white/10 rounded transition-colors text-[#475569] hover:text-ink cursor-pointer bg-transparent border-0"
+                  title={item.label}
                 >
-                  {item.label}
+                  <item.icon size={14} />
                 </button>
               ))}
             </div>
             <textarea
-              className="doc-editor-textarea w-full h-full resize-none border-0 outline-none text-sm leading-relaxed text-body bg-transparent font-mono"
+              className="doc-editor-textarea w-full flex-1 resize-none border-0 outline-none text-[#cbd5e1] bg-transparent text-sm leading-relaxed min-h-[60vh] focus:ring-0 placeholder:text-muted/50 font-sans"
               value={content}
               onChange={e => { setContent(e.target.value); setIsDirty(true); }}
-              placeholder="Start writing your documentation..."
+              placeholder="Start writing your documentation in Markdown..."
             />
-          </>
+          </div>
         )}
 
         {mode === 'preview' && (
           <div
-            className="prose prose-sm max-w-none text-body"
+            className="prose prose-invert max-w-none text-body leading-loose"
             dangerouslySetInnerHTML={{
-              __html: content
-                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                .replace(/`(.+?)`/g, '<code class="bg-surface-elevated px-1.5 py-0.5 text-sm text-body-strong">$1</code>')
-                .replace(/^- (.+)$/gm, '<li>$1</li>')
-                .replace(/^\d\. (.+)$/gm, '<li>$1</li>')
-                .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-m-blue-light/50 pl-4 italic text-muted">$1</blockquote>')
-                .replace(/\n\n/g, '</p><p>')
-                .replace(/^(?!<[h|b|l|c|p|u|o])/gm, '<p>')
-                .replace(/(<p>)\s*<\/p>/g, ''),
+              __html: getHtml(content),
             }}
           />
         )}
+      </div>
 
-        {mode === 'history' && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-ink">Version History</h3>
-            {doc.versions.map(v => (
-              <div key={v.version} className="flex items-center justify-between p-3 bg-surface-card border border-hairline">
-                <div>
-                  <span className="text-sm font-medium text-body-strong">v{v.version}</span>
-                  <span className="text-xs text-muted ml-2">{format(new Date(v.updatedAt), 'MMM d, yyyy h:mm a')}</span>
-                </div>
-                <div className="text-xs text-muted">by {v.updatedBy}</div>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Footer bar */}
+      <div className="px-6 py-3 flex items-center justify-end shrink-0 select-none bg-canvas">
+        <span className="text-[10px] text-muted">
+          Autosaved · {wordCount} words
+        </span>
       </div>
     </div>
   );

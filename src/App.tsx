@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store';
-import { Sidebar } from './components/layout/Sidebar';
-import { useUIStore } from './store';
-import { clsx } from 'clsx';
+import { TopNavbar } from './components/layout/TopNavbar';
 
 // Pages
 import { LoginPage, RegisterPage } from './pages/LoginPage';
@@ -14,9 +12,11 @@ import { ProjectTasksPage } from './pages/ProjectTasksPage';
 import { ProjectDocsPage } from './pages/ProjectDocsPage';
 import { ProjectSnippetsPage } from './pages/ProjectSnippetsPage';
 import { ProjectActivityPage } from './pages/ProjectActivityPage';
+import { ProjectEditorPage } from './pages/ProjectEditorPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PaymentsPage } from './pages/PaymentsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -25,14 +25,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarOpen } = useUIStore();
   return (
-    <div className="min-h-screen bg-[#0f172a] dark">
-      <Sidebar />
-      <main className={clsx(
-        'transition-all duration-300 min-h-screen',
-        sidebarOpen ? 'ml-64' : 'ml-16',
-      )}>
+    <div className="h-screen bg-canvas dark flex flex-col overflow-hidden">
+      <TopNavbar />
+      <main className="flex-1 flex flex-col min-h-0 bg-canvas overflow-hidden">
         {children}
       </main>
     </div>
@@ -52,6 +48,7 @@ export default function App() {
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
         <Route path="/workspaces" element={<ProtectedRoute><AppLayout><WorkspacesPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/payments" element={<ProtectedRoute><AppLayout><PaymentsPage /></AppLayout></ProtectedRoute>} />
@@ -65,6 +62,7 @@ export default function App() {
         <Route path="/workspace/:workspaceId/project/:projectId/docs" element={<ProtectedRoute><AppLayout><ProjectDocsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/workspace/:workspaceId/project/:projectId/snippets" element={<ProtectedRoute><AppLayout><ProjectSnippetsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/workspace/:workspaceId/project/:projectId/activity" element={<ProtectedRoute><AppLayout><ProjectActivityPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/workspace/:workspaceId/project/:projectId/editor" element={<ProtectedRoute><AppLayout><ProjectEditorPage /></AppLayout></ProtectedRoute>} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

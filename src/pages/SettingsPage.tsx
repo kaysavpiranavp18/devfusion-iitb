@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Bell, Shield, Palette, Globe, Mail, Smartphone } from 'lucide-react';
 import { clsx } from 'clsx';
-import { TopNav } from '../components/layout/TopNav';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 
@@ -12,6 +11,8 @@ export function SettingsPage() {
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [mentionNotifs, setMentionNotifs] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [compactMode, setCompactMode] = useState(false);
 
   const tabs: { id: SettingsTab; icon: any; label: string }[] = [
     { id: 'notifications', icon: Bell, label: 'Notifications' },
@@ -21,19 +22,19 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="flex flex-col h-screen">
-      <TopNav title="Settings" />
+    <div className="flex-1 flex flex-col min-h-0 bg-canvas">
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto p-6">
-          <div className="flex gap-6">
+          <div className="flex flex-col md:flex-row gap-6">
             {/* Sidebar tabs */}
-            <div className="w-48 shrink-0 space-y-1">
+            <div className="w-full md:w-48 shrink-0 flex md:flex-col overflow-x-auto pb-2 md:pb-0 gap-1 md:space-y-1 border-b md:border-b-0 border-hairline">
               {tabs.map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   className={clsx(
-                    'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium transition-colors text-left',                      tab === t.id
+                    'flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-left shrink-0 rounded-lg',
+                    tab === t.id
                       ? 'bg-white/10 text-ink'
                       : 'text-muted hover:bg-surface-card',
                   )}
@@ -102,9 +103,25 @@ export function SettingsPage() {
                           <h3 className="text-sm font-medium text-ink">Theme</h3>
                           <p className="text-xs text-muted">Choose between light and dark mode</p>
                         </div>
-                        <div className="flex gap-1 bg-surface-elevated p-1">
-                          <button className="px-3 py-1.5 text-sm bg-surface-card font-medium text-ink">Light</button>
-                          <button className="px-3 py-1.5 text-sm text-muted hover:text-ink">Dark</button>
+                        <div className="flex gap-1 bg-surface-elevated p-1 rounded-lg border border-hairline">
+                          <button
+                            onClick={() => setTheme('light')}
+                            className={clsx(
+                              "px-3 py-1.5 text-xs font-semibold rounded transition-colors cursor-pointer",
+                              theme === 'light' ? "bg-surface-card text-ink shadow-sm" : "text-muted hover:text-ink"
+                            )}
+                          >
+                            Light
+                          </button>
+                          <button
+                            onClick={() => setTheme('dark')}
+                            className={clsx(
+                              "px-3 py-1.5 text-xs font-semibold rounded transition-colors cursor-pointer",
+                              theme === 'dark' ? "bg-surface-card text-ink shadow-sm" : "text-muted hover:text-ink"
+                            )}
+                          >
+                            Dark
+                          </button>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
@@ -112,9 +129,18 @@ export function SettingsPage() {
                           <h3 className="text-sm font-medium text-ink">Compact Mode</h3>
                           <p className="text-xs text-muted">Reduce spacing for a denser layout</p>
                         </div>
-                        <div className="w-10 h-6 bg-hairline cursor-pointer relative">
-                          <div className="w-4 h-4 bg-body absolute top-1 left-1" />
-                        </div>
+                        <button
+                          onClick={() => setCompactMode(!compactMode)}
+                          className={clsx(
+                            'relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer',
+                            compactMode ? 'bg-ink' : 'bg-hairline',
+                          )}
+                        >
+                          <div className={clsx(
+                            'absolute top-0.5 w-5 h-5 bg-canvas rounded-full transition-transform duration-200',
+                            compactMode ? 'translate-x-[22px]' : 'translate-x-0.5',
+                          )} />
+                        </button>
                       </div>
                     </CardContent>
                   </Card>
@@ -179,12 +205,12 @@ function ToggleItem({ icon: Icon, title, description, enabled, onChange }: {
       <button
         onClick={() => onChange(!enabled)}
         className={clsx(
-          'relative w-11 h-6 rounded-full transition-colors duration-200',
+          'relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer',
           enabled ? 'bg-ink' : 'bg-hairline',
         )}
       >
         <div className={clsx(
-          'absolute top-0.5 w-5 h-5 bg-canvas transition-transform duration-200',
+          'absolute top-0.5 w-5 h-5 bg-canvas rounded-full transition-transform duration-200',
           enabled ? 'translate-x-[22px]' : 'translate-x-0.5',
         )} />
       </button>

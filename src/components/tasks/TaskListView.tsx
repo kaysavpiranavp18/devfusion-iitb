@@ -56,14 +56,14 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     todo: 'To Do', in_progress: 'In Progress', in_review: 'In Review', done: 'Done',
   };
   const statusColors: Record<TaskStatus, string> = {
-    todo: 'bg-surface-elevated text-muted',
-    in_progress: 'bg-white/10 text-ink',
-    in_review: 'bg-semantic-warning/10 text-semantic-warning',
-    done: 'bg-semantic-success/10 text-semantic-success',
+    todo: 'bg-surface-elevated text-muted rounded-md border border-hairline',
+    in_progress: 'bg-primary/10 text-primary rounded-md border border-primary/20',
+    in_review: 'bg-semantic-warning/10 text-semantic-warning rounded-md border border-semantic-warning/20',
+    done: 'bg-semantic-success/10 text-semantic-success rounded-md border border-semantic-success/20',
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -72,13 +72,13 @@ export function TaskListView({ projectId }: TaskListViewProps) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-hairline bg-surface-card text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-hairline bg-surface-card text-ink placeholder:text-muted rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
           />
         </div>
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as TaskStatus | 'all')}
-          className="text-sm border border-hairline bg-surface-card text-ink px-3 py-2 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
+          className="text-sm border border-hairline bg-surface-card text-ink px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer"
         >
           <option value="all">All Status</option>
           <option value="todo">To Do</option>
@@ -89,92 +89,152 @@ export function TaskListView({ projectId }: TaskListViewProps) {
         <select
           value={priorityFilter}
           onChange={e => setPriorityFilter(e.target.value as Priority | 'all')}
-          className="text-sm border border-hairline bg-surface-card text-ink px-3 py-2 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
+          className="text-sm border border-hairline bg-surface-card text-ink px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer"
         >
           <option value="all">All Priority</option>
           <option value="p0">P0</option>
           <option value="p1">P1</option>
           <option value="p2">P2</option>
-        </select>          <button
+        </select>
+        <button
           onClick={() => { setSortAsc(!sortAsc); }}
-          className="flex items-center gap-1 text-sm text-muted hover:text-body px-3 py-2 border border-hairline hover:bg-surface-elevated"
+          className="flex items-center gap-1.5 text-sm text-muted hover:text-ink px-3 py-2 border border-hairline hover:bg-surface-elevated rounded-lg transition-all"
         >
           <ArrowUpDown size={14} />
           {sortAsc ? 'Asc' : 'Desc'}
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-surface-card border border-hairline overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-hairline bg-surface-elevated/50">
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Task</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Status</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Priority</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Assignee</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Due Date</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Labels</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(task => (
-              <tr
-                key={task.id}
-                onClick={() => setSelectedTask(task)}
-                className="border-b border-hairline hover:bg-surface-card/50 cursor-pointer transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <span className="text-sm font-bold text-ink">{task.title}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={clsx('text-xs font-medium px-2 py-0.5', statusColors[task.status])}>
-                    {statusLabels[task.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <PriorityBadge priority={task.priority} />
-                </td>
-                <td className="px-4 py-3">
-                  {task.assigneeId ? (
-                    <div className="flex items-center gap-1.5">
-                      <Avatar src={getUserById(task.assigneeId)?.avatar} name={getUserById(task.assigneeId)?.name || 'U'} size="sm" />
-                      <span className="text-sm text-muted">{getUserById(task.assigneeId)?.name}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted">Unassigned</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {task.dueDate ? (
-                    <div className="flex items-center gap-1 text-sm text-muted">
-                      <Calendar size={12} />
-                      {format(new Date(task.dueDate), 'MMM d')}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    {task.labels.slice(0, 2).map(l => (
-                      <Badge key={l} variant="primary" size="sm">{l}</Badge>
-                    ))}
-                    {task.labels.length > 2 && (
-                      <Badge size="sm">+{task.labels.length - 2}</Badge>
+      {/* Desktop Table (hidden on mobile) */}
+      <div className="hidden md:block bg-surface-card border border-hairline rounded-xl overflow-hidden">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full min-w-[700px] border-collapse">
+            <thead>
+              <tr className="border-b border-hairline bg-surface-elevated/40">
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Task</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Priority</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Assignee</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Due Date</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wider">Labels</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(task => (
+                <tr
+                  key={task.id}
+                  onClick={() => setSelectedTask(task)}
+                  className="border-b border-hairline odd:bg-surface-card even:bg-[#0d0d14]/60 hover:bg-surface-elevated/30 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3.5">
+                    <span className="text-sm font-semibold text-ink hover:text-primary transition-colors">{task.title}</span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={clsx('text-xs font-medium px-3 py-1 inline-block', statusColors[task.status])}>
+                      {statusLabels[task.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <PriorityBadge priority={task.priority} />
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {task.assigneeId ? (
+                      <div className="flex items-center gap-2">
+                        <Avatar src={getUserById(task.assigneeId)?.avatar} name={getUserById(task.assigneeId)?.name || 'U'} size="sm" />
+                        <span className="text-sm text-body">{getUserById(task.assigneeId)?.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {task.dueDate ? (
+                      <div className="flex items-center gap-1.5 text-sm text-body">
+                        <Calendar size={13} className="text-muted" />
+                        {format(new Date(task.dueDate), 'MMM d')}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex gap-1.5">
+                      {task.labels.slice(0, 2).map(l => (
+                        <Badge key={l} variant="primary" size="sm">{l}</Badge>
+                      ))}
+                      {task.labels.length > 2 && (
+                        <Badge size="sm">+{task.labels.length - 2}</Badge>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted">
+                    No tasks found matching your filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile Card List (visible only on mobile) */}
+      <div className="md:hidden space-y-3">
+        {filtered.map(task => (
+          <div
+            key={task.id}
+            onClick={() => setSelectedTask(task)}
+            className="p-4 bg-surface-card border border-hairline rounded-xl hover:border-white/10 transition-all cursor-pointer space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-sm font-semibold text-ink hover:text-primary transition-colors line-clamp-2">
+                {task.title}
+              </span>
+              <span className={clsx('text-[10px] font-semibold px-2 py-0.5 shrink-0', statusColors[task.status])}>
+                {statusLabels[task.status]}
+              </span>
+            </div>
+            
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-hairline/50 text-xs">
+              <div className="flex items-center gap-2">
+                <PriorityBadge priority={task.priority} />
+                {task.dueDate && (
+                  <div className="flex items-center gap-1 text-muted">
+                    <Calendar size={12} />
+                    <span>{format(new Date(task.dueDate), 'MMM d')}</span>
                   </div>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted">
-                  No tasks found matching your filters
-                </td>
-              </tr>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {task.assigneeId ? (
+                  <div className="flex items-center gap-1.5">
+                    <Avatar src={getUserById(task.assigneeId)?.avatar} name={getUserById(task.assigneeId)?.name || 'U'} size="sm" className="w-5 h-5" />
+                    <span className="text-muted text-[11px] max-w-[85px] truncate">{getUserById(task.assigneeId)?.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted text-[11px]">—</span>
+                )}
+              </div>
+            </div>
+            
+            {task.labels.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {task.labels.map(l => (
+                  <Badge key={l} variant="primary" size="sm">{l}</Badge>
+                ))}
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted bg-surface-card border border-hairline rounded-xl">
+            No tasks found matching your filters
+          </div>
+        )}
       </div>
 
       {selectedTask && (
