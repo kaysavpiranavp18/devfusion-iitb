@@ -23,15 +23,16 @@ export function ProjectActivityPage() {
     <WorkspaceLayout>
       <div className="h-full flex flex-col">
         {/* Tabs */}
-        <div className="bg-surface-card border-b border-hairline px-6 flex gap-1 shrink-0">
+        <div className="bg-surface-card border-b border-hairline px-4 sm:px-6 flex gap-1 shrink-0 overflow-x-auto scrollbar-none">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={clsx(                  'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-150',
+              className={clsx(
+                'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap cursor-pointer',
                 tab === t.id
-                  ?'border-ink text-ink'
-                    : 'border-transparent text-muted hover:text-body',
+                  ? 'border-ink text-ink'
+                  : 'border-transparent text-muted hover:text-body',
               )}
             >
               <t.icon size={16} />

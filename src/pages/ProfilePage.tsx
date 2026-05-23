@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { GitPullRequest, Calendar, Edit3, Save, X, Sparkles } from 'lucide-react';
+import { GitPullRequest, Calendar, Edit3, Save, X, ListTodo, CheckCircle2, Percent } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore, useTaskStore } from '../store';
-import { TopNav } from '../components/layout/TopNav';
 import { Avatar } from '../components/ui/Avatar';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -11,6 +10,7 @@ import { Badge } from '../components/ui/Badge';
 export function ProfilePage() {
   const { user, updateProfile } = useAuthStore();
   const { tasks } = useTaskStore();
+  
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
   const [github, setGithub] = useState(user?.github || '');
@@ -18,6 +18,8 @@ export function ProfilePage() {
   const [skillInput, setSkillInput] = useState('');
 
   if (!user) return null;
+
+  // handleAiClick is currently disabled to prevent route overrides
 
   const completedTasks = tasks.filter(t => t.status === 'done' && t.assigneeId === user.id).length;
   const assignedTasks = tasks.filter(t => t.assigneeId === user.id).length;
@@ -35,19 +37,23 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <TopNav title="Profile" />
+    <div className="flex-1 flex flex-col min-h-0 bg-canvas">
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
           {/* Profile header */}
           <Card>
             <CardContent className="relative">
-              {/* Cover */}
-              <div className="h-32 -mx-5 -mt-5 mb-6 bg-surface-elevated" />
+              {/* Cover - indigo-to-transparent gradient with a grid overlay */}
+              <div className="h-32 -mx-5 -mt-5 mb-6 relative overflow-hidden bg-gradient-to-r from-indigo-900/50 via-indigo-950/30 to-transparent">
+                {/* Grid overlay */}
+                <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+                {/* Accent glow line at the bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-indigo-500/30 to-transparent" />
+              </div>
               
               <div className="relative flex flex-col sm:flex-row items-start gap-5">
-                <div className="-mt-16 sm:-mt-20">
-                  <Avatar src={user.avatar} name={user.name} size="xl" className="ring-4 ring-canvas" />
+                <div className="-mt-16 sm:-mt-20 z-10">
+                  <Avatar src={user.avatar} name={user.name} size="xl" className="ring-4 ring-canvas shadow-lg" />
                 </div>
                 <div className="flex-1 min-w-0 pt-2">
                   <div className="flex items-start justify-between">
@@ -111,15 +117,15 @@ export function ProfilePage() {
                         onChange={e => setSkillInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
                         placeholder="Add skill..."
-                        className="flex-1 border border-hairline bg-surface-card text-ink placeholder:text-muted px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
+                        className="flex-1 border border-hairline bg-surface-card text-ink placeholder:text-muted px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white rounded-lg"
                       />
-                      <Button size="sm" variant="outline" onClick={addSkill}>Add</Button>
+                      <Button size="sm" variant="outline" onClick={addSkill} className="rounded-lg">Add</Button>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {skills.map(s => (
-                        <span key={s} className="inline-flex items-center gap-1 px-2 py-1 bg-white/10 text-ink text-xs font-medium">
+                        <span key={s} className="inline-flex items-center gap-1.5 px-2 py-1 bg-indigo-950/60 border border-indigo-800/80 text-indigo-300 text-xs font-medium rounded-lg">
                           {s}
-                          <button onClick={() => setSkills(skills.filter(sk => sk !== s))} className="hover:text-red-400">&times;</button>
+                          <button onClick={() => setSkills(skills.filter(sk => sk !== s))} className="hover:text-semantic-danger font-bold cursor-pointer">&times;</button>
                         </span>
                       ))}
                     </div>
@@ -127,7 +133,9 @@ export function ProfilePage() {
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {user.skills.map(s => (
-                      <Badge key={s} variant="primary">{s}</Badge>
+                      <span key={s} className="px-2 py-1 text-xs font-medium rounded-lg bg-indigo-950/60 border border-indigo-800/80 text-indigo-300 select-none">
+                        {s}
+                      </span>
                     ))}
                   </div>
                 )}
@@ -139,19 +147,36 @@ export function ProfilePage() {
               <CardContent className="py-5">
                 <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wider">Statistics</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted">Assigned Tasks</span>
-                    <span className="text-lg font-bold text-ink">{assignedTasks}</span>
+                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20 shrink-0">
+                      <ListTodo size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Assigned Tasks</p>
+                      <p className="text-sm font-bold text-ink mt-0.5">{assignedTasks}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted">Completed</span>
-                    <span className="text-lg font-bold text-semantic-success">{completedTasks}</span>
+
+                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
+                      <CheckCircle2 size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Completed Tasks</p>
+                      <p className="text-sm font-bold text-semantic-success mt-0.5">{completedTasks}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted">Completion Rate</span>
-                    <span className="text-lg font-bold text-ink">
-                      {assignedTasks > 0 ? Math.round(completedTasks / assignedTasks * 100) : 0}%
-                    </span>
+
+                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20 shrink-0">
+                      <Percent size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Completion Rate</p>
+                      <p className="text-sm font-bold text-ink mt-0.5">
+                        {assignedTasks > 0 ? Math.round(completedTasks / assignedTasks * 100) : 0}%
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -162,7 +187,7 @@ export function ProfilePage() {
               <CardContent className="py-5">
                 <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wider">Connected Accounts</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 border border-hairline bg-surface-card">
+                  <div className="flex items-center gap-3 p-3 border border-[#1e1e2e] bg-[#111118]/60 rounded-xl">
                     <GitPullRequest size={18} className="text-muted" />
                     <span className="text-sm text-muted">GitHub</span>
                     {github ? (
@@ -182,19 +207,6 @@ export function ProfilePage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* AI Quick Access */}
-          <Card hover onClick={() => {/* navigate to AI */}}>
-            <CardContent className="flex items-center gap-4 py-4">
-              <div className="w-10 h-10 bg-ink flex items-center justify-center">
-                <Sparkles size={20} className="text-canvas" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-ink">AI Code Reviewer</h3>
-                <p className="text-xs text-muted font-light">Get AI-powered reviews on your code snippets</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

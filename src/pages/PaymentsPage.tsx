@@ -1,6 +1,5 @@
 import { Check, Crown, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
-import { TopNav } from '../components/layout/TopNav';
 import { Button } from '../components/ui/Button';
 import { plans } from '../data/mock';
 import { useState } from 'react';
@@ -10,8 +9,7 @@ export function PaymentsPage() {
   const currentPlan = 'free';
 
   return (
-    <div className="flex flex-col h-screen">
-      <TopNav title="Plans & Billing" />
+    <div className="flex-1 flex flex-col min-h-0 bg-canvas">
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto p-6">
           <div className="text-center mb-10">
@@ -33,38 +31,40 @@ export function PaymentsPage() {
                   key={plan.id}
                   onClick={() => setSelectedPlan(plan.id)}
                   className={clsx(
-                    'relative border border-2 p-6 transition-all duration-200 cursor-pointer',
-                    isSelected ? 'border-ink' : 'border-hairline hover:border-white/50',
-                    plan.id === 'pro' && 'bg-surface-elevated',
+                    'relative border-2 p-6 transition-all duration-200 cursor-pointer rounded-2xl',
+                    isSelected 
+                      ? 'border-primary shadow-[0_0_20px_rgba(99,102,241,0.15)] bg-surface-card' 
+                      : 'border-hairline hover:border-white/20 bg-[#0d0d14]',
+                    plan.id === 'pro' && !isSelected && 'bg-surface-elevated/40 border-indigo-500/10',
                   )}
                 >
                   {plan.id === 'pro' && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-ink text-canvas text-xs font-bold uppercase tracking-wider">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-md">
                       <div className="flex items-center gap-1">
-                        <Sparkles size={12} /> Most Popular
+                        <Sparkles size={10} /> Most Popular
                       </div>
                     </div>
                   )}
 
                   <div className="text-center mb-6">
-                  <h3 className="text-lg font-bold text-ink mb-1 uppercase">{plan.name}</h3>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold text-ink">${plan.price}</span>
-                      <span className="text-sm text-muted">/month</span>
+                    <h3 className="text-sm font-bold text-ink mb-1 uppercase tracking-wider">{plan.name}</h3>
+                    <div className="flex items-baseline justify-center gap-1">
+                      <span className="text-4xl font-bold text-ink">${plan.price}</span>
+                      <span className="text-xs text-muted">/month</span>
                     </div>
                   </div>
 
                   <ul className="space-y-3 mb-6">
                     {plan.features.map(feature => (
-                      <li key={feature} className="flex items-start gap-2 text-sm text-muted font-light">
-                        <Check size={16} className="text-semantic-success mt-0.5 shrink-0" />
+                      <li key={feature} className="flex items-start gap-2 text-xs text-muted font-light">
+                        <Check size={14} className="text-semantic-success mt-0.5 shrink-0" />
                         {feature}
                       </li>
                     ))}
                   </ul>
 
                   <Button
-                    className="w-full"
+                    className="w-full rounded-xl text-xs uppercase tracking-wider font-semibold"
                     variant={isCurrent ? 'outline' : plan.id === 'pro' ? 'primary' : 'outline'}
                     disabled={isCurrent}
                   >
@@ -77,16 +77,16 @@ export function PaymentsPage() {
 
           {/* FAQ */}
           <div className="mt-12 max-w-2xl mx-auto">
-            <h2 className="text-lg font-bold text-ink text-center mb-6 uppercase">Frequently Asked Questions</h2>
-            <div className="space-y-4">
+            <h2 className="text-sm font-bold text-ink text-center mb-6 uppercase tracking-wider">Frequently Asked Questions</h2>
+            <div className="space-y-3">
               {[
                 { q: 'Can I switch plans at any time?', a: 'Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.' },
                 { q: 'What happens when I downgrade?', a: 'You\'ll be limited to the features of your new plan. Your data is preserved.' },
                 { q: 'Is there a free trial for Pro?', a: 'Yes! We offer a 14-day free trial of the Pro plan with no credit card required.' },
               ].map(faq => (
-                <div key={faq.q} className="p-4 bg-surface-card border border-hairline">
-                  <h3 className="text-sm font-medium text-ink mb-1">{faq.q}</h3>
-                  <p className="text-xs text-muted font-light">{faq.a}</p>
+                <div key={faq.q} className="p-4 bg-surface-card border border-hairline rounded-xl">
+                  <h3 className="text-xs font-semibold text-ink mb-1">{faq.q}</h3>
+                  <p className="text-xs text-muted font-light leading-relaxed">{faq.a}</p>
                 </div>
               ))}
             </div>

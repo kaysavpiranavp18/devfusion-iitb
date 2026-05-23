@@ -1,26 +1,58 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FolderKanban, Users, Calendar, ArrowRight, Plus, Activity as ActivityIcon,
   Sparkles, LayoutDashboard,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useWorkspaceStore, useTaskStore } from '../store';
+import { useWorkspaceStore, useTaskStore, useAuthStore } from '../store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout';
+import { Modal } from '../components/ui/Modal';
 import { activities } from '../data/mock';
 import { formatDistanceToNow } from 'date-fns';
+import type { Project } from '../types';
 
 export function WorkspaceOverviewPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const {
     currentWorkspace, setCurrentWorkspace, projects, fetchProjects,
-    workspaces,
+    workspaces, addProject,
   } = useWorkspaceStore();
   const { tasks } = useTaskStore();
+  const { user } = useAuthStore();
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectColor, setProjectColor] = useState('#6366f1');
+
+  const handleCreateProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectName.trim() || !workspaceId) return;
+
+    const newProject: Project = {
+      id: `p${Date.now()}`,
+      workspaceId,
+      name: projectName.trim(),
+      description: projectDescription.trim(),
+      color: projectColor,
+      members: user ? [{ user, role: 'owner', joinedAt: new Date().toISOString() }] : [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    addProject(newProject);
+    setProjectName('');
+    setProjectDescription('');
+    setProjectColor('#6366f1');
+    setIsCreateOpen(false);
+  };
+
+  const projectColors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
 
   useEffect(() => {
     if (workspaceId) {
@@ -62,11 +94,11 @@ export function WorkspaceOverviewPage() {
       <div className="flex-1 overflow-auto">
         <div className="max-w-5xl mx-auto p-6 space-y-8">
           {/* Workspace Header */}
-          <div className="bg-surface-elevated border border-hairline p-8">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-5">
+          <div className="bg-surface-elevated border border-hairline p-6 sm:p-8">
+            <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
                 <Avatar name={currentWorkspace.name} size="xl" className="border-2 border-hairline" />
-                <div>
+                <div className="flex flex-col items-center sm:items-start">
                   <div className="flex items-center gap-3 mb-1">
                     <h1 className="text-2xl font-bold text-ink">{currentWorkspace.name}</h1>
                     <span className={clsx(
@@ -91,7 +123,7 @@ export function WorkspaceOverviewPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex -space-x-2 shrink-0">
+              <div className="flex -space-x-2 shrink-0 self-center md:self-start">
                 {currentWorkspace.members.slice(0, 5).map(m => (
                   <Avatar
                     key={m.user.id}
@@ -131,11 +163,10 @@ export function WorkspaceOverviewPage() {
             ))}
           </div>
 
-          {/* Projects */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-ink">Projects</h2>
-              <Button size="sm">
+              <Button size="sm" onClick={() => setIsCreateOpen(true)}>
                 <Plus size={14} /> New Project
               </Button>
             </div>
@@ -149,7 +180,7 @@ export function WorkspaceOverviewPage() {
                   <p className="text-sm text-muted mb-6 max-w-xs">
                     Create your first project to start collaborating with your team.
                   </p>
-                  <Button>Create Project</Button>
+                  <Button onClick={() => setIsCreateOpen(true)}>Create Project</Button>
                 </CardContent>
               </Card>
             ) : (
@@ -288,6 +319,81 @@ export function WorkspaceOverviewPage() {
           )}
         </div>
       </div>
+
+      {/* Create Project Modal */}
+      <Modal
+        open={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Create New Project"
+        size="md"
+      >
+        <form onSubmit={handleCreateProject} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
+              Project Name
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Frontend Web App, Mobile API"
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
+              Description
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Describe this project and its targets..."
+              value={projectDescription}
+              onChange={e => setProjectDescription(e.target.value)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-2">
+              Project Color Accent
+            </label>
+            <div className="flex gap-2">
+              {projectColors.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setProjectColor(color)}
+                  className={clsx(
+                    "w-6 h-6 rounded-full border transition-all cursor-pointer",
+                    projectColor === color 
+                      ? "border-ink scale-110 shadow-sm" 
+                      : "border-transparent hover:scale-105"
+                  )}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-hairline">
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(false)}
+              className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-primary/10"
+            >
+              Create Project
+            </button>
+          </div>
+        </form>
+      </Modal>
     </WorkspaceLayout>
   );
 }

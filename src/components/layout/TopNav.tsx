@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, Menu } from 'lucide-react';
+import { ArrowLeft, Bell, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useUIStore, useNotificationsStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { useAuthStore } from '../../store';
@@ -9,10 +9,11 @@ interface TopNavProps {
   showBack?: boolean;
   backTo?: string;
   rightContent?: React.ReactNode;
+  showSidebarToggle?: boolean;
 }
 
-export function TopNav({ title, showBack, backTo, rightContent }: TopNavProps) {
-  const { toggleMobileSidebar } = useUIStore();
+export function TopNav({ title, showBack, backTo, rightContent, showSidebarToggle }: TopNavProps) {
+  const { toggleMobileSidebar, sidebarOpen, toggleSidebar } = useUIStore();
   const { unreadCount } = useNotificationsStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -20,6 +21,15 @@ export function TopNav({ title, showBack, backTo, rightContent }: TopNavProps) {
   return (
     <header className="h-14 bg-canvas border-b border-hairline flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
       <div className="flex items-center gap-3">
+        {showSidebarToggle && (
+          <button
+            onClick={toggleSidebar}
+            className="p-2 hover:bg-surface-card text-muted transition-colors cursor-pointer"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            {sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+          </button>
+        )}
         <button
           onClick={toggleMobileSidebar}
           className="lg:hidden p-2 hover:bg-surface-card text-muted"
