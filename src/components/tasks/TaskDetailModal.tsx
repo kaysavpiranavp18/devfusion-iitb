@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Paperclip, Send, X, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Task, TaskComment } from '../../types';
-import { useAuthStore, useTaskStore } from '../../store';
+import { useAuthStore, useTaskStore, useWorkspaceStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { getUserById, users } from '../../data/mock';
 
@@ -16,6 +16,61 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
   const { addComment, updateTask } = useTaskStore();
   const [comment, setComment] = useState('');
 
+  // Autocomplete Mentions State
+  const currentWorkspace = useWorkspaceStore(state => state.currentWorkspace);
+  const teamMembers = currentWorkspace?.members.map(m => m.user) || users;
+  
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(-1);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleCommentChange = (val: string, selectionStart: number) => {
+    setComment(val);
+    
+    // Find last index of '@' before cursor
+    const textBeforeCursor = val.slice(0, selectionStart);
+    const lastAtIdx = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtIdx !== -1) {
+      // Check if there is any space between the '@' and the cursor
+      const textAfterAt = textBeforeCursor.slice(lastAtIdx + 1);
+      if (!textAfterAt.includes(' ')) {
+        setShowMentionDropdown(true);
+        setMentionQuery(textAfterAt.toLowerCase());
+        setMentionIndex(lastAtIdx);
+        return;
+      }
+    }
+    
+    setShowMentionDropdown(false);
+  };
+
+  const selectMention = (name: string) => {
+    if (mentionIndex === -1) return;
+    
+    const beforeAt = comment.slice(0, mentionIndex);
+    const afterCursor = comment.slice(textareaRef.current?.selectionStart || (mentionIndex + 1 + mentionQuery.length));
+    
+    const newText = `${beforeAt}@${name} ${afterCursor}`;
+    setComment(newText);
+    setShowMentionDropdown(false);
+    
+    // Restore focus to textarea
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const cursorPosition = beforeAt.length + name.length + 2; // +1 for @ and +1 for space
+        textareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }, 50);
+  };
+
+  const filteredMentionUsers = teamMembers.filter(u => 
+    u.id !== user?.id &&
+    u.name.toLowerCase().includes(mentionQuery)
+  );
+
   // Handle Escape key closure
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,7 +82,9 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
 
   const handleSubmitComment = () => {
     if (!comment.trim() || !user) return;
-    const mentions = comment.match(/@(\w+)/g)?.map(m => m.slice(1)) || [];
+    const mentions = teamMembers
+      .filter(m => comment.includes(`@${m.name}`))
+      .map(m => m.id);
     const newComment: TaskComment = {
       id: `c${Date.now()}`,
       taskId: task.id,
@@ -38,6 +95,7 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
     };
     addComment(task.id, newComment);
     setComment('');
+    setShowMentionDropdown(false);
   };
 
   // Assignee information is query-loaded dynamically in selection
@@ -209,12 +267,36 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
             </div>
 
             {/* Comment Input styled container */}
-            <div className="flex gap-3 items-start bg-canvas/30 p-3.5 border border-hairline rounded-xl">
+            <div className="flex gap-3 items-start bg-canvas/30 p-3.5 border border-hairline rounded-xl relative">
               <Avatar src={user?.avatar} name={user?.name || 'U'} size="sm" className="w-7 h-7 shrink-0" />
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2 relative">
+                {showMentionDropdown && (
+                  <div className="absolute bottom-full left-0 mb-1.5 w-56 bg-[#0a0a0f] border border-hairline rounded-xl shadow-2xl z-[99] divide-y divide-[#1e1e2e]/50 max-h-48 overflow-y-auto overflow-x-hidden scrollbar-thin">
+                    <div className="px-3 py-1 bg-surface-card text-[9px] font-bold uppercase tracking-wider text-muted select-none">Mention Team Member</div>
+                    {filteredMentionUsers.map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => selectMention(u.name)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5 text-[#c9d1d9] hover:text-white transition-colors cursor-pointer border-none bg-transparent"
+                      >
+                        <Avatar src={u.avatar} name={u.name} size="xs" className="w-4 h-4 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold truncate text-[11px] leading-tight">{u.name}</p>
+                          <p className="text-[9px] text-muted truncate leading-none">{u.email}</p>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredMentionUsers.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted text-center">No teammates found</div>
+                    )}
+                  </div>
+                )}
+                
                 <textarea
+                  ref={textareaRef}
                   value={comment}
-                  onChange={e => setComment(e.target.value)}
+                  onChange={e => handleCommentChange(e.target.value, e.target.selectionStart)}
                   placeholder="Write a comment... Use @ to mention someone"
                   rows={2}
                   className="w-full border border-hairline rounded-lg bg-canvas text-ink placeholder:text-muted p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-none transition-all"

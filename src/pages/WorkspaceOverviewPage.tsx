@@ -30,6 +30,28 @@ export function WorkspaceOverviewPage() {
   const [projectDescription, setProjectDescription] = useState('');
   const [projectColor, setProjectColor] = useState('#6366f1');
 
+  // Invite states
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'viewer'>('member');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText('https://devcollab.app/invite/abc123xyz');
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleSendInvite = () => {
+    if (!inviteEmail.trim()) return;
+    setIsInviteOpen(false);
+    setToastMessage(`Invite sent to ${inviteEmail.trim()}`);
+    setInviteEmail('');
+    setInviteRole('member');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName.trim() || !workspaceId) return;
@@ -230,7 +252,12 @@ export function WorkspaceOverviewPage() {
               <CardContent className="p-0">
                 <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
                   <h2 className="text-sm font-bold text-ink">Members</h2>
-                  <span className="text-xs text-muted">{currentWorkspace.members.length} total</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted">{currentWorkspace.members.length} total</span>
+                    <Button size="sm" onClick={() => setIsInviteOpen(true)} className="rounded-lg py-1 px-3">
+                      Invite Member
+                    </Button>
+                  </div>
                 </div>
                 <div className="divide-y divide-hairline">
                   {currentWorkspace.members.map(m => (
@@ -394,6 +421,79 @@ export function WorkspaceOverviewPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Invite Member Modal */}
+      <Modal
+        open={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        title="Invite to workspace"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="Enter email address"
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all animate-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
+              Role
+            </label>
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value as any)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+              <option value="viewer">Viewer</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-hairline">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="w-full sm:w-auto px-3.5 py-1.5 border border-hairline hover:bg-white/5 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 bg-transparent"
+            >
+              {copiedLink ? "Link copied!" : "Copy Invite Link"}
+            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setIsInviteOpen(false)}
+                className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendInvite}
+                disabled={!inviteEmail.trim()}
+                className="px-3.5 py-1.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Send Invite
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[#13131a] border border-[#1e1e2e] text-ink text-xs px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center gap-2 border-l-4 border-l-[#6366f1]">
+          <span className="font-semibold">{toastMessage}</span>
+        </div>
+      )}
     </WorkspaceLayout>
   );
 }

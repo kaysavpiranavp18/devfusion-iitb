@@ -3,12 +3,12 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { Plus, Calendar, MessageSquare } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Task, TaskStatus } from '../../types';
-import { useTaskStore } from '../../store';
+import { useTaskStore, useAuthStore, useNotificationsStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { TaskDetailModal } from '../tasks/TaskDetailModal';
 import { CreateTaskModal } from '../tasks/CreateTaskModal';
 import { format } from 'date-fns';
-import { getUserById } from '../../data/mock';
+import { getUserById, users } from '../../data/mock';
 
 const columns: { id: TaskStatus; title: string }[] = [
   { id: 'todo', title: 'To Do' },
@@ -53,6 +53,11 @@ function TaskCard({ task, index, onClick }: TaskCardProps) {
             snapshot.isDragging && 'shadow-2xl rotate-[1deg] border-[rgba(255,255,255,0.15)] bg-[#16161f] opacity-95',
           )}
           onClick={onClick}
+          onDragStart={(e) => {
+            const itemData = JSON.stringify({ type: 'task', id: task.id, title: task.title });
+            e.dataTransfer.setData('application/devcollab-item', itemData);
+            e.dataTransfer.setData('text/plain', `@task:${task.title}`);
+          }}
         >
           {/* Row 1 — tags */}
           {task.labels.length > 0 && (
@@ -133,6 +138,51 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   const [createColumn, setCreateColumn] = useState<TaskStatus>('todo');
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
+  // Presence states
+  const [showPresence, setShowPresence] = useState(false);
+  const [presenceText, setPresenceText] = useState('');
+  const [presentUsers, setPresentUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    // 3 seconds: show Priya Sharma
+    const timeout = setTimeout(() => {
+      const priya = users.find(u => u.id === 'u2');
+      if (priya) {
+        setPresentUsers([priya]);
+        setPresenceText("Priya Sharma is viewing this board");
+        setShowPresence(true);
+      }
+    }, 3000);
+
+    const cycle = [
+      { id: 'u3', name: 'Marcus Chen', action: 'joined this board' },
+      { id: 'u4', name: 'Sarah Johnson', action: 'is viewing this board' },
+      { id: 'u5', name: 'David Kim', action: 'joined this board' },
+      { id: 'u2', name: 'Priya Sharma', action: 'is viewing this board' },
+    ];
+    let index = 0;
+
+    const interval = setInterval(() => {
+      const current = cycle[index];
+      const member = users.find(u => u.id === current.id);
+      if (member) {
+        setPresentUsers(prev => {
+          if (!prev.some(u => u.id === member.id)) {
+            return [...prev, member];
+          }
+          return prev;
+        });
+        setPresenceText(`${current.name} ${current.action}`);
+      }
+      index = (index + 1) % cycle.length;
+    }, 8000);
+
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     setLocalTasks(tasks.filter(t => t.projectId === projectId));
   }, [tasks, projectId]);
@@ -148,6 +198,28 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
 
     if (source.droppableId !== destination.droppableId) {
       updateTaskStatus(draggableId, newStatus);
+
+      // Dynamic notification for task moved
+      const task = localTasks.find(t => t.id === draggableId);
+      const currentUser = useAuthStore.getState().user;
+      if (task && currentUser) {
+        const statusLabels: Record<string, string> = {
+          todo: 'To Do',
+          in_progress: 'In Progress',
+          in_review: 'In Review',
+          done: 'Done'
+        };
+        useNotificationsStore.getState().addNotification({
+          id: `n-${Date.now()}`,
+          userId: currentUser.id,
+          title: 'Task Moved',
+          message: `${currentUser.name} moved '${task.title}' to ${statusLabels[newStatus] || newStatus}`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          type: 'task',
+          link: `/workspace/w1/project/${task.projectId}/board`
+        });
+      }
     }
 
     // Reorder locally
@@ -167,75 +239,98 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 p-3 h-full overflow-x-auto overflow-y-hidden bg-canvas select-none">
-          {columns.map(col => {
-            const colTasks = getColumnTasks(col.id);
-            return (
-              <div
-                key={col.id}
-                className="group flex-1 min-w-[220px] max-w-[340px] h-full flex flex-col bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-[10px] p-3"
-              >
-                {/* Column header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-[7px] h-[7px] rounded-full shrink-0"
-                      style={{ backgroundColor: dotColors[col.id] }}
-                    />
-                    <h3 className="text-xs font-semibold uppercase tracking-widest text-[#64748b]">
-                      {col.title}
-                    </h3>
-                    <span className="bg-hairline text-muted text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                      {colTasks.length}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => { setCreateColumn(col.id); setShowCreateModal(true); }}
-                    className="p-1 hover:bg-white/5 text-muted transition-all cursor-pointer rounded opacity-0 group-hover:opacity-100"
-                    title="Add Task"
-                  >
-                    <Plus size={14} />
-                  </button>
+      <div className="h-full flex flex-col p-4 bg-canvas">
+        {/* Presence Bar */}
+        {showPresence && (
+          <div className="flex items-center gap-2 px-1 py-2 mb-3 shrink-0 animate-in fade-in duration-300">
+            <div className="flex -space-x-1.5">
+              {presentUsers.map(u => (
+                <div key={u.id} className="relative w-6 h-6 shrink-0">
+                  <img
+                    src={u.avatar}
+                    alt={u.name}
+                    className="w-6 h-6 rounded-full border border-[#09090b]"
+                  />
+                  <span className="absolute bottom-0 right-0 w-[8px] h-[8px] bg-emerald-500 rounded-full border-2 border-[#09090b]" />
                 </div>
+              ))}
+            </div>
+            <span className="text-xs text-[#71717a] font-normal">
+              {presenceText}
+            </span>
+          </div>
+        )}
 
-                {/* Droppable column */}
-                <Droppable droppableId={col.id}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={clsx(
-                        'flex-1 overflow-y-auto transition-colors duration-150 min-h-[150px]',
-                        snapshot.isDraggingOver ? 'bg-white/[0.01]' : 'bg-transparent',
-                      )}
-                    >
-                      {colTasks.map((task, index) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          index={index}
-                          onClick={() => setSelectedTask(task)}
-                        />
-                      ))}
-                      {colTasks.length === 0 && (
-                        <button
-                          onClick={() => { setCreateColumn(col.id); setShowCreateModal(true); }}
-                          className="w-full py-4 flex items-center justify-center gap-1.5 text-xs text-muted/60 hover:text-ink transition-colors cursor-pointer bg-transparent border-0 font-normal"
-                        >
-                          <Plus size={12} />
-                          <span>Add a task</span>
-                        </button>
-                      )}
-                      {provided.placeholder}
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-hidden bg-canvas select-none min-h-0">
+            {columns.map(col => {
+              const colTasks = getColumnTasks(col.id);
+              return (
+                <div
+                  key={col.id}
+                  className="group flex-1 min-w-[220px] max-w-[340px] h-full flex flex-col bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-[10px] p-3"
+                >
+                  {/* Column header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-[7px] h-[7px] rounded-full shrink-0"
+                        style={{ backgroundColor: dotColors[col.id] }}
+                      />
+                      <h3 className="text-xs font-semibold uppercase tracking-widest text-[#64748b]">
+                        {col.title}
+                      </h3>
+                      <span className="bg-hairline text-muted text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                        {colTasks.length}
+                      </span>
                     </div>
-                  )}
-                </Droppable>
-              </div>
-            );
-          })}
-        </div>
-      </DragDropContext>
+                    <button
+                      onClick={() => { setCreateColumn(col.id); setShowCreateModal(true); }}
+                      className="p-1 hover:bg-white/5 text-muted transition-all cursor-pointer rounded opacity-0 group-hover:opacity-100"
+                      title="Add Task"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  {/* Droppable column */}
+                  <Droppable droppableId={col.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={clsx(
+                          'flex-1 overflow-y-auto transition-colors duration-150 min-h-[150px]',
+                          snapshot.isDraggingOver ? 'bg-white/[0.01]' : 'bg-transparent',
+                        )}
+                      >
+                        {colTasks.map((task, index) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={index}
+                            onClick={() => setSelectedTask(task)}
+                          />
+                        ))}
+                        {colTasks.length === 0 && (
+                          <button
+                            onClick={() => { setCreateColumn(col.id); setShowCreateModal(true); }}
+                            className="w-full py-4 flex items-center justify-center gap-1.5 text-xs text-muted/60 hover:text-ink transition-colors cursor-pointer bg-transparent border-0 font-normal"
+                          >
+                            <Plus size={12} />
+                            <span>Add a task</span>
+                          </button>
+                        )}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
+              );
+            })}
+          </div>
+        </DragDropContext>
+      </div>
 
       {selectedTask && (
         <TaskDetailModal

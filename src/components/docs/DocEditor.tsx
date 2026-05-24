@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, Eye, Edit3, Heading1, Bold, Italic, List, Code } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Save, Eye, Edit3, Heading1, Bold, Italic, List, Code, Image } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { DocPage } from '../../types';
 import { Button } from '../ui/Button';
@@ -15,6 +15,33 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
   const [title, setTitle] = useState(doc.title);
   const [mode, setMode] = useState<'edit' | 'preview'>('preview');
   const [isDirty, setIsDirty] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const imgTag = `<img src="${dataUrl}" style="max-width: 100%; height: auto; margin: 1rem 0; display: block;" alt="${file.name}" />`;
+        
+        const textarea = document.querySelector('.doc-editor-textarea') as HTMLTextAreaElement;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newContent = content.slice(0, start) + imgTag + content.slice(end);
+          setContent(newContent);
+          setIsDirty(true);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = () => {
     onSave(content);
@@ -131,6 +158,7 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
               {toolbarItems.map(item => (
                 <button
                   key={item.action}
+                  type="button"
                   onClick={() => insertFormatting(item.action)}
                   className="p-1.5 hover:bg-white/10 rounded transition-colors text-[#475569] hover:text-ink cursor-pointer bg-transparent border-0"
                   title={item.label}
@@ -138,6 +166,21 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
                   <item.icon size={14} />
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={handleImageClick}
+                className="p-1.5 hover:bg-white/10 rounded transition-colors text-[#475569] hover:text-ink cursor-pointer bg-transparent border-0"
+                title="Insert Image"
+              >
+                <Image size={14} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageChange}
+                accept="image/*"
+                className="hidden"
+              />
             </div>
             <textarea
               className="doc-editor-textarea w-full flex-1 resize-none border-0 outline-none text-[#cbd5e1] bg-transparent text-sm leading-relaxed min-h-[60vh] focus:ring-0 placeholder:text-muted/50 font-sans"

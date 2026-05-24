@@ -4,6 +4,7 @@ import { TopNavbar } from './components/layout/TopNavbar';
 
 // Pages
 import { LoginPage, RegisterPage } from './pages/LoginPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { WorkspaceOverviewPage } from './pages/WorkspaceOverviewPage';
@@ -14,9 +15,7 @@ import { ProjectSnippetsPage } from './pages/ProjectSnippetsPage';
 import { ProjectActivityPage } from './pages/ProjectActivityPage';
 import { ProjectEditorPage } from './pages/ProjectEditorPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { SettingsPage } from './pages/SettingsPage';
 import { PaymentsPage } from './pages/PaymentsPage';
-import { NotificationsPage } from './pages/NotificationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -42,15 +41,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
+        <Route path="/onboarding" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <OnboardingPage />} />
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
         <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
 
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
         <Route path="/workspaces" element={<ProtectedRoute><AppLayout><WorkspacesPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
         <Route path="/payments" element={<ProtectedRoute><AppLayout><PaymentsPage /></AppLayout></ProtectedRoute>} />
 
         {/* Workspace routes */}
@@ -65,8 +63,8 @@ export default function App() {
         <Route path="/workspace/:workspaceId/project/:projectId/editor" element={<ProtectedRoute><AppLayout><ProjectEditorPage /></AppLayout></ProtectedRoute>} />
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />} />
+        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />} />
       </Routes>
     </BrowserRouter>
   );

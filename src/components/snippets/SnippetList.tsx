@@ -1,16 +1,50 @@
-import { useState, useEffect } from 'react';
-import { Search, Copy, Check, Plus, Trash2, X, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Copy, Check, Plus, Trash2, Sparkles, FileCode, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
-import { useSnippetStore } from '../../store';
+import { useSnippetStore, useUIStore } from '../../store';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
 import { getUserById } from '../../data/mock';
-import { AICodeReview } from '../ai/AICodeReview';
-import type { Snippet } from '../../types';
 
 interface SnippetListProps {
   projectId: string;
+}
+
+function getFileIcon(lang: string) {
+  const l = lang.toLowerCase();
+  if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(l)) {
+    return <FileCode size={14} className="text-[#3b82f6]" />;
+  }
+  if (l === 'python') {
+    return <FileCode size={14} className="text-[#10b981]" />;
+  }
+  if (l === 'go') {
+    return <FileCode size={14} className="text-[#06b6d4]" />;
+  }
+  if (l === 'java' || l === 'cpp' || l === 'rust') {
+    return <FileCode size={14} className="text-[#f97316]" />;
+  }
+  if (l === 'html' || l === 'css') {
+    return <FileCode size={14} className="text-[#ef4444]" />;
+  }
+  return <FileText size={14} className="text-muted" />;
+}
+
+function getExtensionForLanguage(lang: string): string {
+  const l = lang.toLowerCase();
+  switch (l) {
+    case 'typescript': return '.ts';
+    case 'javascript': return '.js';
+    case 'python': return '.py';
+    case 'go': return '.go';
+    case 'rust': return '.rs';
+    case 'java': return '.java';
+    case 'cpp': return '.cpp';
+    case 'css': return '.css';
+    case 'html': return '.html';
+    default: return '.txt';
+  }
 }
 
 const languageBadgeClasses: Record<string, string> = {
@@ -162,8 +196,16 @@ export function SnippetList({ projectId }: SnippetListProps) {
   const [newLang, setNewLang] = useState('typescript');
   const [newDesc, setNewDesc] = useState('');
   const [newTags, setNewTags] = useState('');
-  const [reviewingSnippet, setReviewingSnippet] = useState<Snippet | null>(null);
+  const [newFilename, setNewFilename] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'file'>('list');
   const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
+
+  // Drag & drop file upload and panel resizing
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
+  const [isResizingPanel, setIsResizingPanel] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
 
   const projectSnippets = snippets.filter(s => s.projectId === projectId);
   const languages = [...new Set(projectSnippets.map(s => s.language))];
@@ -184,12 +226,96 @@ export function SnippetList({ projectId }: SnippetListProps) {
     }
   }, [filtered, selectedSnippetId]);
 
+  const handleFilenameChange = (val: string) => {
+    setNewFilename(val);
+    const ext = val.split('.').pop()?.toLowerCase();
+    if (ext) {
+      if (ext === 'ts' || ext === 'tsx') {
+        setNewLang('typescript');
+      } else if (ext === 'js' || ext === 'jsx') {
+        setNewLang('javascript');
+      } else if (ext === 'py') {
+        setNewLang('python');
+      } else if (ext === 'go') {
+        setNewLang('go');
+      } else if (ext === 'rs') {
+        setNewLang('rust');
+      } else if (ext === 'java') {
+        setNewLang('java');
+      } else if (ext === 'cpp' || ext === 'h' || ext === 'hpp' || ext === 'cc') {
+        setNewLang('cpp');
+      } else if (ext === 'css') {
+        setNewLang('css');
+      } else if (ext === 'html') {
+        setNewLang('html');
+      }
+    }
+  };
+
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setNewCode(text);
+      
+      const fname = file.name;
+      setNewFilename(fname);
+      
+      const titleWithoutExt = fname.substring(0, fname.lastIndexOf('.')) || fname;
+      const formattedTitle = titleWithoutExt
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+      setNewTitle(formattedTitle);
+      
+      const ext = fname.split('.').pop()?.toLowerCase();
+      if (ext) {
+        if (ext === 'ts' || ext === 'tsx') {
+          setNewLang('typescript');
+        } else if (ext === 'js' || ext === 'jsx') {
+          setNewLang('javascript');
+        } else if (ext === 'py') {
+          setNewLang('python');
+        } else if (ext === 'go') {
+          setNewLang('go');
+        } else if (ext === 'rs') {
+          setNewLang('rust');
+        } else if (ext === 'java') {
+          setNewLang('java');
+        } else if (ext === 'cpp' || ext === 'h' || ext === 'hpp' || ext === 'cc') {
+          setNewLang('cpp');
+        } else if (ext === 'css') {
+          setNewLang('css');
+        } else if (ext === 'html') {
+          setNewLang('html');
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
   const handleAdd = () => {
     if (!newTitle.trim() || !newCode.trim()) return;
     addSnippet({
       id: `s${Date.now()}`,
       projectId,
       title: newTitle.trim(),
+      filename: newFilename.trim() || undefined,
       code: newCode,
       language: newLang,
       tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
@@ -202,17 +328,57 @@ export function SnippetList({ projectId }: SnippetListProps) {
     setNewCode('');
     setNewDesc('');
     setNewTags('');
+    setNewFilename('');
     setShowForm(false);
   };
 
-  // Close AI drawer on Esc key
+  const startResizePanel = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingPanel(true);
+  };
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setReviewingSnippet(null);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingPanel && leftPanelRef.current) {
+        const rect = leftPanelRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - rect.left;
+        if (newWidth >= 200 && newWidth <= 500) {
+          setLeftPanelWidth(newWidth);
+        }
+      }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+
+    const handleMouseUp = () => {
+      setIsResizingPanel(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    if (isResizingPanel) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingPanel]);
+
+  const handleReview = () => {
+    if (!selectedSnippet) return;
+    useUIStore.getState().setAiSidebarOpen(true);
+    window.dispatchEvent(new CustomEvent('copilot-review-snippet', {
+      detail: {
+        id: selectedSnippet.id,
+        title: selectedSnippet.title,
+        code: selectedSnippet.code,
+        language: selectedSnippet.language
+      }
+    }));
+  };
 
   return (
     <div className="p-4 sm:p-6 h-[calc(100vh-2.5rem)] flex flex-col overflow-hidden bg-canvas">
@@ -244,45 +410,130 @@ export function SnippetList({ projectId }: SnippetListProps) {
 
       {/* Add form */}
       {showForm && (
-        <div className="bg-surface-card border border-hairline p-4 sm:p-5 mb-6 rounded-xl space-y-4 transition-all">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              placeholder="Snippet title"
-              className="border border-hairline bg-canvas text-ink placeholder:text-muted px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-            />
-            <select
-              value={newLang}
-              onChange={e => setNewLang(e.target.value)}
-              className="border border-hairline bg-canvas text-ink px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer"
-            >
-              {['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'cpp', 'css', 'html'].map(l => (
-                <option key={l} value={l}>{l.toUpperCase()}</option>
-              ))}
-            </select>
+        <div className="bg-[#0b0f17] border border-primary/20 p-5 mb-6 rounded-xl space-y-4 shadow-xl relative overflow-hidden transition-all duration-300">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-indigo-500" />
+          
+          <div className="flex items-center gap-2 pb-2 border-b border-[#1e1e2e]">
+            <Sparkles size={14} className="text-primary animate-pulse" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">Create New Snippet</h3>
           </div>
-          <input
-            value={newDesc}
-            onChange={e => setNewDesc(e.target.value)}
-            placeholder="Description"
-            className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-          />
-          <input
-            value={newTags}
-            onChange={e => setNewTags(e.target.value)}
-            placeholder="Tags (comma separated)"
-            className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-          />
-          <textarea
-            value={newCode}
-            onChange={e => setNewCode(e.target.value)}
-            placeholder="Paste your code here..."
-            rows={6}
-            className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted px-3 py-2 text-sm font-mono rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-y"
-          />
-          <div className="flex justify-end">
-            <Button size="sm" onClick={handleAdd} disabled={!newTitle.trim() || !newCode.trim()} className="rounded-lg">
+
+          {/* File Drag and Drop zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleFileDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={clsx(
+              "border border-dashed rounded-lg p-5 text-center cursor-pointer transition-all duration-200",
+              isDragOver 
+                ? "border-primary bg-primary/5 text-ink" 
+                : "border-hairline hover:border-primary/50 text-muted hover:text-ink bg-canvas/30"
+            )}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <div className="flex flex-col items-center justify-center gap-1 text-xs">
+              <Sparkles size={16} className={clsx("text-muted", isDragOver && "text-primary animate-pulse")} />
+              <span className="font-semibold text-ink">Drag & drop a code file here, or click to upload</span>
+              <span className="text-[10px] text-muted font-normal">Automatically populates form fields & auto-detects programming language</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Title *</label>
+              <input
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                placeholder="e.g. useDebounce hook"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                required
+              />
+            </div>
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Filename</label>
+              <input
+                value={newFilename}
+                onChange={e => handleFilenameChange(e.target.value)}
+                placeholder="e.g. useDebounce.ts"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Language *</label>
+              <select
+                value={newLang}
+                onChange={e => setNewLang(e.target.value)}
+                className="w-full border border-hairline bg-canvas text-ink px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer font-semibold"
+              >
+                {['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'cpp', 'css', 'html'].map(l => (
+                  <option key={l} value={l}>{l.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Description</label>
+              <input
+                value={newDesc}
+                onChange={e => setNewDesc(e.target.value)}
+                placeholder="Briefly describe what this snippet does"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Tags</label>
+              <input
+                value={newTags}
+                onChange={e => setNewTags(e.target.value)}
+                placeholder="comma-separated list, e.g. react, hooks"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Code *</label>
+            <textarea
+              value={newCode}
+              onChange={e => setNewCode(e.target.value)}
+              placeholder="Paste or write your code snippet here..."
+              rows={6}
+              className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 p-4 text-xs font-mono rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-2 border-t border-[#1e1e2e]">
+            <button
+              type="button"
+              onClick={() => {
+                setNewTitle('');
+                setNewCode('');
+                setNewDesc('');
+                setNewTags('');
+                setNewFilename('');
+                setShowForm(false);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-muted hover:text-ink bg-transparent hover:bg-white/5 border border-[#1e1e2e] rounded-lg transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <Button
+              size="sm"
+              onClick={handleAdd}
+              disabled={!newTitle.trim() || !newCode.trim()}
+              className="rounded-lg px-5 text-xs font-bold"
+            >
               Add Snippet
             </Button>
           </div>
@@ -290,13 +541,41 @@ export function SnippetList({ projectId }: SnippetListProps) {
       )}
 
       {/* Two-panel layout */}
-      <div className="flex border border-[#1e1e2e] rounded-xl bg-[#0d0d14] flex-1 min-h-0 overflow-hidden mt-2">
+      <div className="flex border border-[#1e1e2e] rounded-xl bg-[#0d0d14] flex-1 min-h-0 overflow-hidden mt-2 relative">
         {/* LEFT PANEL: Snippet List */}
-        <div className="w-[320px] shrink-0 border-r border-[#1e1e2e] flex flex-col bg-[#0d0d14] h-full">
+        <div
+          ref={leftPanelRef}
+          style={{ width: `${leftPanelWidth}px` }}
+          className={clsx(
+            "shrink-0 border-r border-[#1e1e2e] flex flex-col bg-[#0d0d14] h-full relative",
+            !isResizingPanel && "transition-all duration-150"
+          )}
+        >
           {/* Label Header */}
-          <div className="text-[11px] uppercase tracking-widest text-muted px-4 py-3 border-b border-[#1e1e2e] font-semibold flex items-center justify-between shrink-0 select-none">
-            <span>Snippets</span>
-            <span className="text-muted font-bold">{filtered.length}</span>
+          <div className="text-[11px] uppercase tracking-widest text-muted px-4 py-2.5 border-b border-[#1e1e2e] font-semibold flex items-center justify-between shrink-0 select-none">
+            <span>Snippets ({filtered.length})</span>
+            <div className="flex bg-[#13131a] rounded-lg p-0.5 border border-[#1e1e2e]">
+              <button
+                onClick={() => setViewMode('list')}
+                className={clsx(
+                  "px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all duration-150 cursor-pointer border-none",
+                  viewMode === 'list' ? "bg-white/10 text-ink" : "text-muted hover:text-ink hover:bg-white/[0.02]"
+                )}
+                title="List View"
+              >
+                List
+              </button>
+              <button
+                onClick={() => setViewMode('file')}
+                className={clsx(
+                  "px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all duration-150 cursor-pointer border-none",
+                  viewMode === 'file' ? "bg-white/10 text-ink" : "text-muted hover:text-ink hover:bg-white/[0.02]"
+                )}
+                title="File View"
+              >
+                Files
+              </button>
+            </div>
           </div>
           
           {/* Scrollable list */}
@@ -313,27 +592,54 @@ export function SnippetList({ projectId }: SnippetListProps) {
                       ? 'bg-[#1a1a2e] border-l-2 border-[#6366f1]'
                       : 'hover:bg-[#13131a] border-l-2 border-transparent'
                   )}
+                  draggable
+                  onDragStart={(e) => {
+                    const itemData = JSON.stringify({ type: 'snippet', id: snippet.id, title: snippet.title });
+                    e.dataTransfer.setData('application/devcollab-item', itemData);
+                    e.dataTransfer.setData('text/plain', `@snippet:${snippet.title}`);
+                  }}
                 >
-                  {/* Top row: title + language badge */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={clsx(
-                      'text-sm font-medium truncate flex-1',
-                      isSelected ? 'text-[#e2e8f0]' : 'text-[#cbd5e1]'
-                    )}>
-                      {snippet.title}
-                    </span>
-                    <span className={clsx(
-                      'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded tracking-wide shrink-0',
-                      getLanguageBadgeClass(snippet.language)
-                    )}>
-                      {snippet.language}
-                    </span>
-                  </div>
-                  {/* Bottom row: tags */}
-                  {snippet.tags.length > 0 && (
-                    <div className="text-[10px] text-muted truncate font-medium">
-                      {snippet.tags.slice(0, 2).join(' · ')}
-                    </div>
+                  {viewMode === 'file' ? (
+                    <>
+                      {/* Top row: filename + icon */}
+                      <div className="flex items-center gap-2">
+                        {getFileIcon(snippet.language)}
+                        <span className={clsx(
+                          'text-sm font-mono truncate flex-1',
+                          isSelected ? 'text-[#e2e8f0]' : 'text-[#cbd5e1]'
+                        )}>
+                          {snippet.filename || (snippet.title.toLowerCase().replace(/\s+/g, '-') + getExtensionForLanguage(snippet.language))}
+                        </span>
+                      </div>
+                      {/* Bottom row: snippet title (as context) */}
+                      <div className="text-[10px] text-muted truncate font-medium pl-5">
+                        {snippet.title}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Top row: title + language badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={clsx(
+                          'text-sm font-medium truncate flex-1',
+                          isSelected ? 'text-[#e2e8f0]' : 'text-[#cbd5e1]'
+                        )}>
+                          {snippet.title}
+                        </span>
+                        <span className={clsx(
+                          'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded tracking-wide shrink-0',
+                          getLanguageBadgeClass(snippet.language)
+                        )}>
+                          {snippet.language}
+                        </span>
+                      </div>
+                      {/* Bottom row: tags */}
+                      {snippet.tags.length > 0 && (
+                        <div className="text-[10px] text-muted truncate font-medium">
+                          {snippet.tags.slice(0, 2).join(' · ')}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -345,6 +651,22 @@ export function SnippetList({ projectId }: SnippetListProps) {
               </div>
             )}
           </div>
+
+          {/* Resize Handle */}
+          <div
+            onMouseDown={startResizePanel}
+            className="hidden md:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 select-none group"
+          >
+            {/* Top and Bottom Corner Grab notches */}
+            <div className="absolute top-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+            </div>
+            <div className="absolute bottom-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+            </div>
+          </div>
         </div>
 
         {/* RIGHT PANEL: Snippet Detail */}
@@ -354,7 +676,12 @@ export function SnippetList({ projectId }: SnippetListProps) {
               {/* Header */}
               <div className="flex items-start justify-between pb-4 mb-4 border-b border-[#1e1e2e] shrink-0">
                 <div className="min-w-0 flex-1 pr-4">
-                  <h2 className="text-lg font-semibold text-[#e2e8f0] truncate">{selectedSnippet.title}</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-[#e2e8f0] truncate">{selectedSnippet.title}</h2>
+                    <span className="text-xs font-mono bg-white/5 border border-hairline px-2 py-0.5 rounded text-muted">
+                      {selectedSnippet.filename || (selectedSnippet.title.toLowerCase().replace(/\s+/g, '-') + getExtensionForLanguage(selectedSnippet.language))}
+                    </span>
+                  </div>
                   {selectedSnippet.description && (
                     <p className="text-sm text-muted mt-1 leading-relaxed">{selectedSnippet.description}</p>
                   )}
@@ -372,8 +699,8 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => setReviewingSnippet(selectedSnippet)}
-                    className="flex items-center gap-1.5 text-[11px] font-bold bg-[#6366f1] hover:bg-[#4f46e5] text-white px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95"
+                    onClick={handleReview}
+                    className="flex items-center gap-1.5 text-[11px] font-bold bg-[#6366f1] hover:bg-[#4f46e5] text-white px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 border-none"
                   >
                     <Sparkles size={11} /> Review
                   </button>
@@ -419,36 +746,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
         </div>
       </div>
 
-      {/* AI Review Slide-out Drawer */}
-      {reviewingSnippet && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200" 
-            onClick={() => setReviewingSnippet(null)} 
-          />
 
-          {/* Drawer Panel */}
-          <div className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[500px] bg-surface-card border-l border-hairline shadow-2xl flex flex-col h-full select-none animate-in">
-            <div className="p-4 border-b border-hairline flex items-center justify-between shrink-0 bg-canvas/30">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-primary" />
-                <span className="text-xs font-bold text-ink uppercase tracking-wider">AI Review: {reviewingSnippet.title}</span>
-              </div>
-              <button
-                onClick={() => setReviewingSnippet(null)}
-                className="p-1 hover:bg-surface-card text-muted hover:text-ink transition-colors cursor-pointer rounded"
-                title="Close review (Esc)"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <AICodeReview initialCode={reviewingSnippet.code} initialLanguage={reviewingSnippet.language} />
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

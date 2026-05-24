@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
-  LayoutDashboard, FolderKanban, Users, Settings, CreditCard, Bell, LogOut,
+  LayoutDashboard, FolderKanban, Users, CreditCard, Bell, LogOut,
 } from 'lucide-react';
 import { useAuthStore, useUIStore, useNotificationsStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
@@ -12,7 +12,6 @@ const navItems = [
   { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/profile', icon: Users, label: 'Profile' },
   { to: '/payments', icon: CreditCard, label: 'Plans' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function Sidebar() {

@@ -8,9 +8,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary: 'border border-white text-ink hover:bg-white/10',
+  primary: 'bg-primary hover:bg-[#4f46e5] text-white border-none shadow-md shadow-primary/10 hover:shadow-primary/20',
   secondary: 'bg-surface-card text-ink hover:bg-surface-elevated border border-hairline',
-  outline: 'border border-hairline text-body hover:bg-surface-card',
+  outline: 'border border-hairline text-body hover:text-ink hover:bg-surface-card',
   ghost: 'text-muted hover:bg-surface-card',
   danger: 'bg-semantic-danger text-white hover:opacity-80',
 };
@@ -26,7 +26,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={clsx(
-        'inline-flex items-center justify-center rounded-none transition-all duration-150',
+        'inline-flex items-center justify-center rounded-lg transition-all duration-150',
         'button-label',
         'focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-1 focus:ring-offset-canvas',
         'disabled:opacity-50 disabled:cursor-not-allowed',
