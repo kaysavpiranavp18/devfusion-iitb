@@ -12,7 +12,7 @@ interface AICodeReviewProps {
   compact?: boolean;
 }
 
-export function AICodeReview({ initialCode = '', initialLanguage = 'typescript' }: AICodeReviewProps) {
+export function AICodeReview({ initialCode = '', initialLanguage = 'typescript', compact = false }: AICodeReviewProps) {
   const [code, setCode] = useState(initialCode);
   const [language, setLanguage] = useState(initialLanguage);
   const [loading, setLoading] = useState(false);
@@ -127,11 +127,13 @@ ${hasAsync ? '- Multiple async operations detected — consider using Promise.al
   }, [initialCode, initialLanguage]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-5">
-      <div className="flex items-center gap-2 pb-2 border-b border-hairline/50">
-        <Shield size={18} className="text-primary" />
-        <h2 className="text-sm font-bold text-ink uppercase tracking-wider font-sans">AI Code Reviewer</h2>
-      </div>
+    <div className={clsx(compact ? "p-3.5 space-y-4 overflow-y-auto h-full" : "p-4 sm:p-6 space-y-5")}>
+      {!compact && (
+        <div className="flex items-center gap-2 pb-2 border-b border-hairline/50">
+          <Shield size={18} className="text-primary" />
+          <h2 className="text-sm font-bold text-ink uppercase tracking-wider font-sans">AI Code Reviewer</h2>
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* Input Block */}

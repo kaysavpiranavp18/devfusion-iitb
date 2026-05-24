@@ -1,14 +1,14 @@
-import { type ReactNode, useEffect } from 'react';
+import React, { type ReactNode, useEffect, useState } from 'react';
 import { useParams, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
-  LayoutDashboard, FileText, Code, Activity, Users, Settings, Plus,
-  FolderOpen, CheckSquare, Home, Sparkles, PanelRightClose,
+  LayoutDashboard, FileText, Code, Activity, Settings, Plus,
+  FolderOpen, CheckSquare, Home, UserPlus,
 } from 'lucide-react';
 import { useWorkspaceStore, useUIStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
+import { Modal } from '../ui/Modal';
 import { AIAssistant } from '../ai/AIAssistant';
-import { AICodeReview } from '../ai/AICodeReview';
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -21,9 +21,108 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects } = useWorkspaceStore();
   const {
     sidebarOpen, toggleSidebar,
-    aiSidebarOpen, activeAiModel, activeAiTab,
-    toggleAiSidebar, setActiveAiModel, setActiveAiTab
+    aiSidebarOpen, toggleAiSidebar
   } = useUIStore();
+
+  const [leftWidth, setLeftWidth] = useState(220);
+  const [rightWidth, setRightWidth] = useState(384);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
+
+  // Invite teammates state
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'viewer'>('member');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText('https://devcollab.app/invite/abc123xyz');
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleSendInvite = () => {
+    if (!inviteEmail.trim() || !currentWorkspace) return;
+
+    const newMemberName = inviteEmail.split('@')[0];
+    const formattedName = newMemberName.charAt(0).toUpperCase() + newMemberName.slice(1);
+
+    const newMember = {
+      user: {
+        id: `u-${Date.now()}`,
+        name: formattedName,
+        email: inviteEmail.trim(),
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newMemberName}`,
+        skills: [],
+        createdAt: new Date().toISOString(),
+      },
+      role: inviteRole,
+      joinedAt: new Date().toISOString(),
+    };
+
+    const updatedWorkspace = {
+      ...currentWorkspace,
+      members: [...currentWorkspace.members, newMember]
+    };
+
+    useWorkspaceStore.setState({
+      currentWorkspace: updatedWorkspace,
+      workspaces: useWorkspaceStore.getState().workspaces.map(w => w.id === currentWorkspace.id ? updatedWorkspace : w)
+    });
+
+    setIsInviteOpen(false);
+    setToastMessage(`Invite sent to ${inviteEmail.trim()}`);
+    setInviteEmail('');
+    setInviteRole('member');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const startResizeLeft = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingLeft(true);
+  };
+
+  const startResizeRight = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingRight(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft) {
+        // Activity bar is 56px (w-14)
+        const newWidth = e.clientX - 56;
+        if (newWidth >= 160 && newWidth <= 450) {
+          setLeftWidth(newWidth);
+        }
+      } else if (isResizingRight) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth >= 280 && newWidth <= 600) {
+          setRightWidth(newWidth);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingLeft(false);
+      setIsResizingRight(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    if (isResizingLeft || isResizingRight) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingLeft, isResizingRight]);
 
   useEffect(() => {
     if (workspaceId) {
@@ -139,13 +238,17 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         )}
 
         {/* 2. Left Explorer Sidebar (Collapsible, ~220px) */}
-        <div className={clsx(
-          "bg-canvas border-r border-hairline flex flex-col shrink-0 overflow-y-auto transition-all duration-300",
-          "fixed md:relative left-14 md:left-0 top-10 md:top-0 bottom-0 z-30 shadow-2xl md:shadow-none h-[calc(100vh-2.5rem)] md:h-full",
-          sidebarOpen 
-            ? "w-[220px] translate-x-0" 
-            : "w-[220px] md:w-0 -translate-x-full md:translate-x-0 border-r-0 overflow-hidden"
-        )}>
+        <div
+          style={sidebarOpen ? { width: `${leftWidth}px` } : { width: '0px' }}
+          className={clsx(
+            "bg-canvas border-r border-hairline flex flex-col shrink-0 overflow-y-auto relative",
+            !isResizingLeft && "transition-all duration-300",
+            "fixed md:relative left-14 md:left-0 top-10 md:top-0 bottom-0 z-30 shadow-2xl md:shadow-none h-[calc(100vh-2.5rem)] md:h-full",
+            sidebarOpen 
+              ? "translate-x-0" 
+              : "-translate-x-full md:translate-x-0 border-r-0 overflow-hidden"
+          )}
+        >
           {/* Workspace Info */}
           <div className="p-4 border-b border-hairline">
             <div className="flex items-center gap-3 mb-3">
@@ -210,7 +313,13 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
           <div className="p-3 border-t border-hairline mt-auto">
             <div className="flex items-center justify-between mb-2 px-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Members</span>
-              <Users size={12} className="text-muted" />
+              <button
+                onClick={() => setIsInviteOpen(true)}
+                className="p-1 hover:bg-surface-card hover:text-ink text-muted rounded transition-colors cursor-pointer border-none bg-transparent"
+                title="Invite teammates"
+              >
+                <UserPlus size={13} />
+              </button>
             </div>
             <div className="space-y-1">
               {currentWorkspace.members.map(m => (
@@ -222,6 +331,24 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
               ))}
             </div>
           </div>
+
+          {/* Resize Handle */}
+          {sidebarOpen && (
+            <div
+              onMouseDown={startResizeLeft}
+              className="hidden md:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 select-none group"
+            >
+              {/* Top and Bottom Corner grab notches */}
+              <div className="absolute top-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              </div>
+              <div className="absolute bottom-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. Main Content Area (Center) */}
@@ -240,77 +367,114 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         )}
 
         {/* 4. AI Copilot Sidebar (Collapsible, Far Right) */}
-        <div className={clsx(
-          "bg-canvas border-l border-hairline flex flex-col shrink-0 transition-all duration-300 overflow-hidden min-h-0 z-30",
-          "fixed md:relative right-0 top-10 md:top-0 bottom-0 shadow-2xl md:shadow-none h-[calc(100vh-2.5rem)] md:h-auto",
-          aiSidebarOpen 
-            ? "w-80 md:w-96 translate-x-0" 
-            : "w-80 md:w-0 translate-x-full md:translate-x-0 border-l-0"
-        )}>
-          {/* Header */}
-          <div className="p-3 border-b border-hairline flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-primary animate-pulse" />
-              <span className="text-xs font-bold text-ink uppercase tracking-wider">DevCollab Copilot</span>
+        <div
+          style={aiSidebarOpen ? { width: `${rightWidth}px` } : { width: '0px' }}
+          className={clsx(
+            "bg-[#070a10] border-l border-hairline flex flex-col shrink-0 overflow-hidden min-h-0 z-30 relative",
+            !isResizingRight && "transition-all duration-300",
+            "fixed md:relative right-0 top-10 md:top-0 bottom-0 shadow-2xl md:shadow-none h-[calc(100vh-2.5rem)] md:h-auto",
+            aiSidebarOpen 
+              ? "translate-x-0" 
+              : "translate-x-full md:translate-x-0 border-l-0"
+          )}
+        >
+          {/* Resize Handle */}
+          {aiSidebarOpen && (
+            <div
+              onMouseDown={startResizeRight}
+              className="hidden md:block absolute top-0 left-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 select-none group"
+            >
+              {/* Top and Bottom Corner grab notches */}
+              <div className="absolute top-4 left-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              </div>
+              <div className="absolute bottom-4 left-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+                <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              </div>
             </div>
-            <button
-              onClick={toggleAiSidebar}
-              className="p-1 hover:bg-surface-card text-muted hover:text-ink transition-colors cursor-pointer rounded"
-              title="Close panel"
-            >
-              <PanelRightClose size={14} />
-            </button>
-          </div>
-
-          {/* Model Selector */}
-          <div className="p-3 border-b border-hairline bg-surface-card/20 shrink-0">
-            <label className="block text-[9px] font-bold uppercase tracking-wider text-muted mb-1">
-              AI MODEL
-            </label>
-            <select
-              value={activeAiModel}
-              onChange={(e) => setActiveAiModel(e.target.value)}
-              className="w-full bg-surface-card border border-hairline text-ink text-xs rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
-            >
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro (Default)</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-              <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-              <option value="gpt-4o">GPT-4o</option>
-            </select>
-          </div>
-
-          {/* Panel Switcher Tabs */}
-          <div className="flex border-b border-hairline bg-canvas shrink-0">
-            <button
-              onClick={() => setActiveAiTab('assistant')}
-              className={clsx(
-                "flex-1 text-center py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-150 cursor-pointer",
-                activeAiTab === 'assistant' ? "border-primary text-ink bg-white/[0.02]" : "border-transparent text-muted hover:text-ink"
-              )}
-            >
-              Assistant
-            </button>
-            <button
-              onClick={() => setActiveAiTab('review')}
-              className={clsx(
-                "flex-1 text-center py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-150 cursor-pointer",
-                activeAiTab === 'review' ? "border-primary text-ink bg-white/[0.02]" : "border-transparent text-muted hover:text-ink"
-              )}
-            >
-              Code Review
-            </button>
-          </div>
+          )}
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto min-h-0 bg-canvas">
-            {activeAiTab === 'assistant' ? (
-              <AIAssistant projectId={projectId || projects[0]?.id || ''} />
-            ) : (
-              <AICodeReview compact />
-            )}
+          <div className="flex-1 overflow-hidden min-h-0 bg-[#070a10] flex flex-col">
+            <AIAssistant projectId={projectId || projects[0]?.id || ''} />
           </div>
         </div>
       </div>
+
+      {/* Invite Member Modal */}
+      <Modal
+        open={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        title="Invite to workspace"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#8b949e] mb-1.5">
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="Enter email address"
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#8b949e] mb-1.5">
+              Role
+            </label>
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value as any)}
+              className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer focus:outline-none"
+            >
+              <option value="member" className="bg-[#0a0a0f]">Member</option>
+              <option value="admin" className="bg-[#0a0a0f]">Admin</option>
+              <option value="viewer" className="bg-[#0a0a0f]">Viewer</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-hairline">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="w-full sm:w-auto px-3.5 py-1.5 border border-hairline hover:bg-white/5 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 bg-transparent"
+            >
+              {copiedLink ? "Link copied!" : "Copy Invite Link"}
+            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setIsInviteOpen(false)}
+                className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 text-[#8b949e] hover:text-ink text-xs font-semibold rounded-lg transition-all cursor-pointer border-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendInvite}
+                disabled={!inviteEmail.trim()}
+                className="px-3.5 py-1.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none"
+              >
+                Send Invite
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[#13131a] border border-[#1e1e2e] text-ink text-xs px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center gap-2 border-l-4 border-l-[#6366f1]">
+          <span className="font-semibold">{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

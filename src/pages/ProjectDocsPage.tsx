@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { FileText, Plus, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -12,6 +12,46 @@ export function ProjectDocsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [docs, setDocs] = useState(initialDocs.filter(d => d.projectId === projectId));
   const [activeDoc, setActiveDoc] = useState<DocPage | null>(null);
+
+  // States and hooks for left panel resizing
+  const [panelWidth, setPanelWidth] = useState(256);
+  const [isResizingPanel, setIsResizingPanel] = useState(false);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+
+  const startResizePanel = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingPanel(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingPanel && leftPanelRef.current) {
+        const rect = leftPanelRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - rect.left;
+        if (newWidth >= 180 && newWidth <= 450) {
+          setPanelWidth(newWidth);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingPanel(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    if (isResizingPanel) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingPanel]);
 
   const handleSave = (content: string) => {
     if (!activeDoc) return;
@@ -44,12 +84,17 @@ export function ProjectDocsPage() {
 
   return (
     <WorkspaceLayout>
-      <div className="h-full flex flex-col sm:flex-row bg-canvas">
+      <div className="h-full flex flex-col sm:flex-row bg-canvas relative">
         {/* Sidebar */}
-        <div className={clsx(
-          "w-full sm:w-64 border-r border-hairline bg-surface-card flex flex-col shrink-0 transition-all",
-          activeDoc ? "hidden sm:flex" : "flex"
-        )}>
+        <div
+          ref={leftPanelRef}
+          style={{ width: window.innerWidth >= 640 ? `${panelWidth}px` : undefined }}
+          className={clsx(
+            "w-full sm:w-auto shrink-0 border-r border-hairline bg-surface-card flex flex-col relative",
+            !isResizingPanel && "transition-all",
+            activeDoc ? "hidden sm:flex" : "flex"
+          )}
+        >
           <div className="p-4 border-b border-hairline flex items-center justify-between">
             <span className="text-xs font-bold text-ink uppercase tracking-wider">Pages</span>
             <button
@@ -73,6 +118,12 @@ export function ProjectDocsPage() {
                       ? 'bg-white/5 text-ink border-l-primary border-y-transparent border-r-transparent font-semibold shadow-sm'
                       : 'border-transparent text-muted hover:bg-white/[0.02] hover:text-ink',
                   )}
+                  draggable
+                  onDragStart={(e) => {
+                    const itemData = JSON.stringify({ type: 'doc', id: doc.id, title: doc.title });
+                    e.dataTransfer.setData('application/devcollab-item', itemData);
+                    e.dataTransfer.setData('text/plain', `@doc:${doc.title}`);
+                  }}
                 >
                   <div className="flex items-center gap-2 w-full">
                     <FileText size={14} className={clsx(isActive ? 'text-primary' : 'text-muted', 'shrink-0')} />
@@ -90,6 +141,22 @@ export function ProjectDocsPage() {
                 No pages created yet.
               </div>
             )}
+          </div>
+
+          {/* Resize Handle */}
+          <div
+            onMouseDown={startResizePanel}
+            className="hidden sm:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 select-none group"
+          >
+            {/* Top and Bottom Corner grab notches */}
+            <div className="absolute top-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+            </div>
+            <div className="absolute bottom-4 right-0.5 flex gap-[1px] items-center justify-center opacity-40 group-hover:opacity-100 group-active:opacity-100 transition-opacity">
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+              <div className="w-[1.5px] h-3.5 bg-gray-500 rounded-full" />
+            </div>
           </div>
         </div>
 

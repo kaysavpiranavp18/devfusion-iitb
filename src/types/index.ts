@@ -78,6 +78,7 @@ export interface Snippet {
   id: string;
   projectId: string;
   title: string;
+  filename?: string;
   code: string;
   language: string;
   tags: string[];
@@ -133,7 +134,7 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'mention' | 'assignment' | 'task_update' | 'invite' | 'system';
+  type: 'mention' | 'assignment' | 'task_update' | 'invite' | 'system' | 'task' | 'comment';
   read: boolean;
   link?: string;
   createdAt: string;

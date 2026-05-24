@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, CheckCheck, Mail, AtSign, GitPullRequest, UserPlus, Info, ExternalLink } from 'lucide-react';
+import { Bell, CheckCheck, Mail, AtSign, GitPullRequest, UserPlus, Info, ExternalLink, CheckSquare, MessageSquare } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useNotificationsStore } from '../../store';
 
@@ -9,6 +9,8 @@ const iconMap = {
   task_update: GitPullRequest,
   invite: Mail,
   system: Info,
+  task: CheckSquare,
+  comment: MessageSquare,
 };
 
 const colorMap = {
@@ -17,6 +19,8 @@ const colorMap = {
   task_update: 'text-semantic-warning bg-semantic-warning/20',
   invite: 'text-body bg-surface-elevated',
   system: 'text-muted bg-surface-elevated',
+  task: 'text-semantic-success bg-[#10b981]/15',
+  comment: 'text-[#818cf8] bg-[#818cf8]/15',
 };
 
 export function NotificationCenter({ compact }: { compact?: boolean }) {

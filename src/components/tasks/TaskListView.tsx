@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ArrowUpDown, Calendar } from 'lucide-react';
+import { Search, ArrowUpDown, Calendar, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import type { Task, Priority, TaskStatus } from '../../types';
@@ -7,6 +7,7 @@ import { useTaskStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { Badge, PriorityBadge } from '../ui/Badge';
 import { TaskDetailModal } from './TaskDetailModal';
+import { CreateTaskModal } from './CreateTaskModal';
 import { getUserById } from '../../data/mock';
 
 interface TaskListViewProps {
@@ -23,6 +24,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   const [sortField] = useState<SortField>('priority');
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const projectTasks = tasks.filter(t => t.projectId === projectId);
 
@@ -103,6 +105,13 @@ export function TaskListView({ projectId }: TaskListViewProps) {
           <ArrowUpDown size={14} />
           {sortAsc ? 'Asc' : 'Desc'}
         </button>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="ml-auto flex items-center gap-1.5 text-xs font-bold bg-primary hover:bg-[#4f46e5] text-white px-4 py-2 rounded-lg transition-all duration-150 uppercase tracking-wider select-none cursor-pointer border-none shadow-md shadow-primary/10 hover:shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <Plus size={14} />
+          Create Task
+        </button>
       </div>
 
       {/* Desktop Table (hidden on mobile) */}
@@ -125,6 +134,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                   key={task.id}
                   onClick={() => setSelectedTask(task)}
                   className="border-b border-hairline odd:bg-surface-card even:bg-[#0d0d14]/60 hover:bg-surface-elevated/30 cursor-pointer transition-colors"
+                  draggable
+                  onDragStart={(e) => {
+                    const itemData = JSON.stringify({ type: 'task', id: task.id, title: task.title });
+                    e.dataTransfer.setData('application/devcollab-item', itemData);
+                    e.dataTransfer.setData('text/plain', `@task:${task.title}`);
+                  }}
                 >
                   <td className="px-4 py-3.5">
                     <span className="text-sm font-semibold text-ink hover:text-primary transition-colors">{task.title}</span>
@@ -239,6 +254,14 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
       {selectedTask && (
         <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
+      )}
+
+      {showCreateModal && (
+        <CreateTaskModal
+          projectId={projectId}
+          initialStatus="todo"
+          onClose={() => setShowCreateModal(false)}
+        />
       )}
     </div>
   );

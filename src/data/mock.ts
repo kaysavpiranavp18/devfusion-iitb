@@ -343,6 +343,7 @@ export const snippets: Snippet[] = [
     id: 's1',
     projectId: 'p1',
     title: 'useDebounce hook',
+    filename: 'useDebounce.ts',
     code: `import { useState, useEffect } from 'react';
 
 export function useDebounce<T>(value: T, delay: number): T {
@@ -371,6 +372,7 @@ export function useDebounce<T>(value: T, delay: number): T {
     id: 's2',
     projectId: 'p1',
     title: 'Prisma pagination helper',
+    filename: 'paginate.ts',
     code: `export async function paginate<T>(
   model: any,
   args: any,
@@ -401,6 +403,7 @@ export function useDebounce<T>(value: T, delay: number): T {
     id: 's3',
     projectId: 'p2',
     title: 'Python sentiment analyzer',
+    filename: 'sentiment.py',
     code: `from textblob import TextBlob
 
 def analyze_sentiment(text: str) -> dict:
@@ -431,6 +434,7 @@ def analyze_sentiment(text: str) -> dict:
     id: 's4',
     projectId: 'p1',
     title: 'API rate limiter middleware',
+    filename: 'rateLimiter.ts',
     code: `import rateLimit from 'express-rate-limit';
 
 export const apiLimiter = rateLimit({

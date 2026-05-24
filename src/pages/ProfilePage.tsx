@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { GitPullRequest, Calendar, Edit3, Save, X, ListTodo, CheckCircle2, Percent } from 'lucide-react';
+import { 
+  GitPullRequest, Calendar, Edit3, Save, X, ListTodo, 
+  CheckCircle2, Percent, Sparkles, Award
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore, useTaskStore } from '../store';
 import { Avatar } from '../components/ui/Avatar';
 import { Card, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 
 export function ProfilePage() {
   const { user, updateProfile } = useAuthStore();
@@ -18,8 +19,6 @@ export function ProfilePage() {
   const [skillInput, setSkillInput] = useState('');
 
   if (!user) return null;
-
-  // handleAiClick is currently disabled to prevent route overrides
 
   const completedTasks = tasks.filter(t => t.status === 'done' && t.assigneeId === user.id).length;
   const assignedTasks = tasks.filter(t => t.assigneeId === user.id).length;
@@ -37,43 +36,58 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-canvas">
+    <div className="flex-grow flex flex-col min-h-0 bg-[#070a10] font-sans select-text">
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
+          
           {/* Profile header */}
-          <Card>
-            <CardContent className="relative">
-              {/* Cover - indigo-to-transparent gradient with a grid overlay */}
-              <div className="h-32 -mx-5 -mt-5 mb-6 relative overflow-hidden bg-gradient-to-r from-indigo-900/50 via-indigo-950/30 to-transparent">
-                {/* Grid overlay */}
-                <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
-                {/* Accent glow line at the bottom */}
-                <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-indigo-500/30 to-transparent" />
-              </div>
+          <Card className="border border-[#1e1e2e]/40 bg-[#0d1117]/60">
+            <CardContent className="relative p-6">
+              <div className="h-24 -mx-6 -mt-6 mb-6 bg-gradient-to-r from-indigo-900/30 via-indigo-950/15 to-transparent border-b border-[#1e1e2e]/30" />
               
-              <div className="relative flex flex-col sm:flex-row items-start gap-5">
-                <div className="-mt-16 sm:-mt-20 z-10">
-                  <Avatar src={user.avatar} name={user.name} size="xl" className="ring-4 ring-canvas shadow-lg" />
+              <div className="relative flex flex-col sm:flex-row items-start gap-5 text-left">
+                <div className="-mt-16 sm:-mt-20 z-10 select-none">
+                  <Avatar src={user.avatar} name={user.name} size="xl" className="ring-4 ring-[#070a10] shadow-lg rounded-2xl" />
                 </div>
-                <div className="flex-1 min-w-0 pt-2">
-                  <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0 pt-2 w-full">
+                  <div className="flex items-start justify-between w-full select-none">
                     <div>
-                  <h1 className="text-2xl font-bold text-ink">{user.name}</h1>
-                  <p className="text-sm text-muted">{user.email}</p>
+                      <h1 className="text-lg font-bold text-[#e6edf3] flex items-center gap-1.5 leading-tight">
+                        {user.name}
+                        <Award size={13} className="text-[#6366f1]" />
+                      </h1>
+                      <p className="text-[10px] text-muted font-mono">{user.email}</p>
                     </div>
                     {editing ? (
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-                          <X size={14} /> Cancel
-                        </Button>
-                        <Button size="sm" onClick={saveProfile}>
-                          <Save size={14} /> Save
-                        </Button>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBio(user.bio || '');
+                            setGithub(user.github || '');
+                            setSkills(user.skills);
+                            setEditing(false);
+                          }}
+                          className="px-2.5 py-1 bg-white/5 border border-white/10 hover:bg-white/10 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                        >
+                          <X size={11} /> Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveProfile}
+                          className="px-3.5 py-1 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer border-none"
+                        >
+                          <Save size={11} /> Save
+                        </button>
                       </div>
                     ) : (
-                      <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                        <Edit3 size={14} /> Edit Profile
-                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-[#cbd5e1] hover:text-white text-xs font-bold rounded-lg transition-colors cursor-pointer border border-[#1e1e2e]"
+                      >
+                        <Edit3 size={11} /> Edit Profile
+                      </button>
                     )}
                   </div>
 
@@ -83,19 +97,19 @@ export function ProfilePage() {
                       value={bio}
                       onChange={e => setBio(e.target.value)}
                       rows={3}
-                      className="w-full mt-3 border border-hairline bg-surface-card text-ink placeholder:text-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white"
+                      className="w-full mt-3 border border-[#1e1e2e] bg-[#0a0a0f] text-ink placeholder:text-muted/40 p-2.5 text-xs rounded-lg focus:outline-none focus:border-[#6366f1]/60 resize-none font-light"
                       placeholder="Write a short bio..."
                     />
                   ) : (
-                    <p className="text-sm text-muted mt-3 leading-relaxed font-light">{user.bio}</p>
+                    <p className="text-xs text-muted mt-3 leading-relaxed font-light select-text">{user.bio || "No profile bio written yet."}</p>
                   )}
 
                   {/* Meta */}
-                  <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-muted">
-                    <span className="flex items-center gap-1"><Calendar size={12} /> Joined {format(new Date(user.createdAt), 'MMMM yyyy')}</span>
+                  <div className="flex flex-wrap items-center gap-4 mt-4 text-[10px] text-muted border-t border-[#1e1e2e]/30 pt-3 select-none">
+                    <span className="flex items-center gap-1"><Calendar size={11} /> Joined {format(new Date(user.createdAt), 'MMMM yyyy')}</span>
                     {github && (
-                      <a href={github} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-body text-muted">
-                        <GitPullRequest size={12} /> GitHub
+                      <a href={github} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-white transition-colors">
+                        <GitPullRequest size={11} /> GitHub Profile
                       </a>
                     )}
                   </div>
@@ -104,108 +118,102 @@ export function ProfilePage() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
             {/* Skills */}
-            <Card>
+            <Card className="border border-[#1e1e2e]/40 bg-[#0d1117]/60 text-left">
               <CardContent className="py-5">
-                <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wider">Skills</h3>
+                <h3 className="text-xs font-bold text-[#e6edf3] mb-3 uppercase tracking-wider flex items-center gap-1 border-b border-[#1e1e2e]/20 pb-2 select-none">
+                  <Sparkles size={12} className="text-[#6366f1] shrink-0" /> Skills & Tech
+                </h3>
                 {editing ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
+                  <div className="space-y-3">
+                    <div className="flex gap-1.5">
                       <input
                         value={skillInput}
                         onChange={e => setSkillInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
                         placeholder="Add skill..."
-                        className="flex-1 border border-hairline bg-surface-card text-ink placeholder:text-muted px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white rounded-lg"
+                        className="flex-1 border border-[#1e1e2e] bg-[#0a0a0f] text-ink placeholder:text-muted/40 px-2 py-1 text-xs focus:outline-none focus:border-[#6366f1]/60 rounded-lg font-medium"
                       />
-                      <Button size="sm" variant="outline" onClick={addSkill} className="rounded-lg">Add</Button>
+                      <button type="button" onClick={addSkill} className="px-2.5 py-1 bg-[#6366f1] text-white hover:bg-[#4f46e5] text-xs font-bold rounded-lg cursor-pointer border-none transition-colors">Add</button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                       {skills.map(s => (
-                        <span key={s} className="inline-flex items-center gap-1.5 px-2 py-1 bg-indigo-950/60 border border-indigo-800/80 text-indigo-300 text-xs font-medium rounded-lg">
+                        <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#6366f1]/10 border border-[#6366f1]/20 text-[#818cf8] text-[10px] font-semibold rounded-md">
                           {s}
-                          <button onClick={() => setSkills(skills.filter(sk => sk !== s))} className="hover:text-semantic-danger font-bold cursor-pointer">&times;</button>
+                          <button type="button" onClick={() => setSkills(skills.filter(sk => sk !== s))} className="hover:text-rose-400 font-bold cursor-pointer text-xs">&times;</button>
                         </span>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 select-none">
                     {user.skills.map(s => (
-                      <span key={s} className="px-2 py-1 text-xs font-medium rounded-lg bg-indigo-950/60 border border-indigo-800/80 text-indigo-300 select-none">
+                      <span key={s} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#6366f1]/10 border border-[#6366f1]/20 text-[#818cf8]">
                         {s}
                       </span>
                     ))}
+                    {user.skills.length === 0 && (
+                      <span className="text-xs text-muted font-light italic">No skills listed yet.</span>
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Stats */}
-            <Card>
+            <Card className="border border-[#1e1e2e]/40 bg-[#0d1117]/60 text-left select-none">
               <CardContent className="py-5">
-                <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wider">Statistics</h3>
+                <h3 className="text-xs font-bold text-[#e6edf3] mb-3 uppercase tracking-wider flex items-center gap-1 border-b border-[#1e1e2e]/20 pb-2">
+                  <ListTodo size={12} className="text-[#6366f1] shrink-0" /> Task Statistics
+                </h3>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20 shrink-0">
-                      <ListTodo size={14} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Assigned Tasks</p>
-                      <p className="text-sm font-bold text-ink mt-0.5">{assignedTasks}</p>
-                    </div>
+                  <div className="flex items-center justify-between p-2.5 bg-[#0a0a0f] border border-[#1e1e2e]/60 rounded-lg text-xs">
+                    <span className="text-muted flex items-center gap-1"><ListTodo size={11} /> Assigned:</span>
+                    <span className="font-bold text-ink">{assignedTasks}</span>
                   </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
-                      <CheckCircle2 size={14} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Completed Tasks</p>
-                      <p className="text-sm font-bold text-semantic-success mt-0.5">{completedTasks}</p>
-                    </div>
+                  <div className="flex items-center justify-between p-2.5 bg-[#0a0a0f] border border-[#1e1e2e]/60 rounded-lg text-xs">
+                    <span className="text-muted flex items-center gap-1"><CheckCircle2 size={11} className="text-emerald-400" /> Completed:</span>
+                    <span className="font-bold text-emerald-400">{completedTasks}</span>
                   </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-[#111118]/60 border border-[#1e1e2e] rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20 shrink-0">
-                      <Percent size={14} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">Completion Rate</p>
-                      <p className="text-sm font-bold text-ink mt-0.5">
-                        {assignedTasks > 0 ? Math.round(completedTasks / assignedTasks * 100) : 0}%
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-between p-2.5 bg-[#0a0a0f] border border-[#1e1e2e]/60 rounded-lg text-xs">
+                    <span className="text-muted flex items-center gap-1"><Percent size={11} /> Completion Rate:</span>
+                    <span className="font-bold text-ink">
+                      {assignedTasks > 0 ? Math.round(completedTasks / assignedTasks * 100) : 0}%
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Connected accounts */}
-            <Card>
+            {/* Connected Accounts */}
+            <Card className="border border-[#1e1e2e]/40 bg-[#0d1117]/60 text-left">
               <CardContent className="py-5">
-                <h3 className="text-sm font-bold text-ink mb-3 uppercase tracking-wider">Connected Accounts</h3>
+                <h3 className="text-xs font-bold text-[#e6edf3] mb-3 uppercase tracking-wider flex items-center gap-1 border-b border-[#1e1e2e]/20 pb-2 select-none">
+                  <GitPullRequest size={12} className="text-[#6366f1] shrink-0" /> Connected Accounts
+                </h3>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 border border-[#1e1e2e] bg-[#111118]/60 rounded-xl">
-                    <GitPullRequest size={18} className="text-muted" />
-                    <span className="text-sm text-muted">GitHub</span>
-                    {github ? (
-                      <Badge variant="success" size="sm">Connected</Badge>
-                    ) : editing ? (
+                  <div className="flex items-center justify-between p-2.5 border border-[#1e1e2e]/60 bg-[#0a0a0f] rounded-lg text-xs">
+                    <span className="text-muted select-none">GitHub</span>
+                    {editing ? (
                       <input
+                        type="url"
                         value={github}
                         onChange={e => setGithub(e.target.value)}
                         placeholder="https://github.com/username"
-                        className="flex-1 text-sm bg-transparent outline-none text-ink"
+                        className="bg-transparent border-none outline-none text-right text-xs text-ink max-w-[120px] font-mono"
                       />
+                    ) : github ? (
+                      <span className="text-xs text-emerald-400 font-semibold select-none">Connected</span>
                     ) : (
-                      <Badge size="sm">Not connected</Badge>
+                      <span className="text-xs text-muted select-none">Not Connected</span>
                     )}
                   </div>
                 </div>
               </CardContent>
             </Card>
+
           </div>
         </div>
       </div>

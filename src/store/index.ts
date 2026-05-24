@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Workspace, Project, User, Notification, Task, Snippet, TaskComment } from '../types';
-import { workspaces as mockWorkspaces, projects as mockProjects, currentUser, tasks as mockTasks, snippets as mockSnippets, notifications as mockNotifs } from '../data/mock';
+import { workspaces as mockWorkspaces, projects as mockProjects, currentUser, tasks as mockTasks, snippets as mockSnippets, notifications as mockNotifs, users } from '../data/mock';
 import { mockFiles } from '../data/mockFiles';
 
 interface AuthState {
@@ -12,8 +12,8 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: currentUser,
-  isAuthenticated: true,
+  user: null,
+  isAuthenticated: false,
   login: async () => {
     set({ user: currentUser, isAuthenticated: true });
     return true;
@@ -75,10 +75,50 @@ export const useTaskStore = create<TaskState>((set) => ({
   updateTaskOrder: (taskId, order) => set((state) => ({
     tasks: state.tasks.map(t => t.id === taskId ? { ...t, order } : t),
   })),
-  addTask: (task) => set((state) => ({ tasks: [...state.tasks, task] })),
-  addComment: (taskId, comment: TaskComment) => set((state) => ({
-    tasks: state.tasks.map(t => t.id === taskId ? { ...t, comments: [...t.comments, comment as TaskComment] } : t),
-  })),
+  addTask: (task) => set((state) => {
+    const updatedTasks = [...state.tasks, task];
+    
+    // Notify!
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser) {
+      const assigneeUser = users.find(u => u.id === task.assigneeId);
+      const assigneeName = assigneeUser ? assigneeUser.name : 'Unassigned';
+      
+      useNotificationsStore.getState().addNotification({
+        id: `n-${Date.now()}`,
+        userId: currentUser.id,
+        title: 'Task Created',
+        message: `New task '${task.title}' was assigned to ${assigneeName}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        type: 'task',
+        link: `/workspace/w1/project/${task.projectId}/board`
+      });
+    }
+    
+    return { tasks: updatedTasks };
+  }),
+  addComment: (taskId, comment: TaskComment) => set((state) => {
+    const updatedTasks = state.tasks.map(t => t.id === taskId ? { ...t, comments: [...t.comments, comment as TaskComment] } : t);
+    
+    // Notify!
+    const task = state.tasks.find(t => t.id === taskId);
+    const currentUser = useAuthStore.getState().user;
+    if (task && currentUser) {
+      useNotificationsStore.getState().addNotification({
+        id: `n-${Date.now()}`,
+        userId: currentUser.id,
+        title: 'New Comment',
+        message: `${currentUser.name} commented on '${task.title}'`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        type: 'comment',
+        link: `/workspace/w1/project/${task.projectId}/board`
+      });
+    }
+    
+    return { tasks: updatedTasks };
+  }),
   updateTask: (taskId, updates) => set((state) => ({
     tasks: state.tasks.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t),
   })),
@@ -101,6 +141,7 @@ interface NotificationsState {
   unreadCount: number;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  addNotification: (notification: Notification) => void;
 }
 
 export const useNotificationsStore = create<NotificationsState>((set) => ({
@@ -116,6 +157,10 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
     notifications: state.notifications.map(n => ({ ...n, read: true })),
     unreadCount: 0,
   })),
+  addNotification: (notification) => set((state) => {
+    const notifications = [notification, ...state.notifications];
+    return { notifications, unreadCount: notifications.filter(n => !n.read).length };
+  }),
 }));
 
 interface UIState {
