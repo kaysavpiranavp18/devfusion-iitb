@@ -15,8 +15,9 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { clsx } from 'clsx';
 import type { ActivityType as ActivityTypeUnion } from '../../types';
-import { activities, getUserById } from '../../data/mock';
+import { useActivityStore, useAuthStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
+import { useEffect } from 'react';
 
 interface ActivityFeedProps {
   workspaceId: string;
@@ -40,6 +41,14 @@ const activityConfig: Record<ActivityTypeUnion, { icon: any; classes: string }> 
 export function ActivityFeed({ workspaceId, projectId, showFilters = true }: ActivityFeedProps) {
   const [typeFilter, setTypeFilter] = useState<ActivityTypeUnion | 'all'>('all');
   const [memberFilter, setMemberFilter] = useState<string>('all');
+  const { activities, fetchActivities } = useActivityStore();
+  const { profiles } = useAuthStore();
+
+  useEffect(() => {
+    if (workspaceId) {
+      fetchActivities(workspaceId, projectId);
+    }
+  }, [workspaceId, projectId, fetchActivities]);
 
   const wsActivities = activities.filter(a => {
     if (a.workspaceId !== workspaceId) return false;
@@ -81,7 +90,7 @@ export function ActivityFeed({ workspaceId, projectId, showFilters = true }: Act
             >
               <option value="all">All Members</option>
               {uniqueMembers.map(mid => (
-                <option key={mid} value={mid}>{getUserById(mid)?.name}</option>
+                <option key={mid} value={mid}>{profiles[mid]?.name || mid}</option>
               ))}
             </select>
           </div>
@@ -97,7 +106,7 @@ export function ActivityFeed({ workspaceId, projectId, showFilters = true }: Act
         )}
         <div className="space-y-0">
           {wsActivities.slice(0, 50).map((activity, idx) => {
-            const user = getUserById(activity.userId);
+            const user = profiles[activity.userId];
             const isLast = idx === wsActivities.length - 1;
             const config = activityConfig[activity.type] || { icon: Activity, classes: 'bg-surface-elevated text-muted border-hairline' };
             const IconComponent = config.icon;
@@ -123,7 +132,7 @@ export function ActivityFeed({ workspaceId, projectId, showFilters = true }: Act
                     <div className="flex items-start gap-2.5 min-w-0">
                       <Avatar src={user?.avatar} name={user?.name || 'U'} size="sm" className="shrink-0 mt-0.5" />
                       <p className="text-sm text-body leading-relaxed">
-                        <span className="font-semibold text-ink">{user?.name}</span>{' '}
+                        <span className="font-semibold text-ink">{user?.name || 'Someone'}</span>{' '}
                         {activity.message.replace(user?.name || '', '').trim()}
                       </p>
                     </div>

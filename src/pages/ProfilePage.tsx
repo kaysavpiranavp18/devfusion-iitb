@@ -15,7 +15,7 @@ export function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
   const [github, setGithub] = useState(user?.github || '');
-  const [skills, setSkills] = useState(user?.skills || [] as string[]);
+  const [skills, setSkills] = useState<string[]>(user?.skills || []);
   const [skillInput, setSkillInput] = useState('');
 
   if (!user) return null;
@@ -149,7 +149,7 @@ export function ProfilePage() {
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5 select-none">
-                    {user.skills.map(s => (
+                    {user.skills.map((s: string) => (
                       <span key={s} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#6366f1]/10 border border-[#6366f1]/20 text-[#818cf8]">
                         {s}
                       </span>

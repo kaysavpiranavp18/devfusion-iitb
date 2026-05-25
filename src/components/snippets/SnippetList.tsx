@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Copy, Check, Plus, Trash2, Sparkles, FileCode, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
-import { useSnippetStore, useUIStore } from '../../store';
+import { useSnippetStore, useUIStore, useAuthStore } from '../../store';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
-import { getUserById } from '../../data/mock';
 
 interface SnippetListProps {
   projectId: string;
@@ -187,7 +186,8 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
 }
 
 export function SnippetList({ projectId }: SnippetListProps) {
-  const { snippets, deleteSnippet, addSnippet } = useSnippetStore();
+  const { snippets, deleteSnippet, addSnippet, fetchSnippets } = useSnippetStore();
+  const { profiles, user } = useAuthStore();
   const [search, setSearch] = useState('');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
@@ -199,6 +199,12 @@ export function SnippetList({ projectId }: SnippetListProps) {
   const [newFilename, setNewFilename] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'file'>('list');
   const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (projectId) {
+      fetchSnippets(projectId);
+    }
+  }, [projectId, fetchSnippets]);
 
   // Drag & drop file upload and panel resizing
   const [isDragOver, setIsDragOver] = useState(false);
@@ -310,7 +316,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
   };
 
   const handleAdd = () => {
-    if (!newTitle.trim() || !newCode.trim()) return;
+    if (!newTitle.trim() || !newCode.trim() || !user) return;
     addSnippet({
       id: `s${Date.now()}`,
       projectId,
@@ -320,7 +326,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
       language: newLang,
       tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
       description: newDesc.trim(),
-      createdBy: 'u1',
+      createdBy: user.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -728,12 +734,12 @@ export function SnippetList({ projectId }: SnippetListProps) {
               <div className="mt-auto pt-4 border-t border-[#1e1e2e]/40 shrink-0 select-none flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Avatar
-                    src={getUserById(selectedSnippet.createdBy)?.avatar}
-                    name={getUserById(selectedSnippet.createdBy)?.name || 'U'}
+                    src={profiles[selectedSnippet.createdBy]?.avatar}
+                    name={profiles[selectedSnippet.createdBy]?.name || 'U'}
                     size="xs"
                   />
                   <span className="text-[10px] text-muted">
-                    Added by <span className="text-body font-medium">{getUserById(selectedSnippet.createdBy)?.name || 'Unknown'}</span> · Updated {format(new Date(selectedSnippet.updatedAt), 'MMM d, yyyy')}
+                    Added by <span className="text-body font-medium">{profiles[selectedSnippet.createdBy]?.name || 'Unknown'}</span> · Updated {format(new Date(selectedSnippet.updatedAt), 'MMM d, yyyy')}
                   </span>
                 </div>
               </div>

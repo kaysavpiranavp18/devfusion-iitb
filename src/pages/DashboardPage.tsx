@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format, formatDistanceToNow, addDays, isSameDay } from 'date-fns';
-import { useWorkspaceStore, useAuthStore, useTaskStore } from '../store';
+import { useWorkspaceStore, useAuthStore, useTaskStore, useActivityStore, useNotificationsStore } from '../store';
 import { Avatar } from '../components/ui/Avatar';
 import { PriorityBadge } from '../components/ui/Badge';
-import { getUserById, projects as mockProjects, activities } from '../data/mock';
+import { supabase } from '../lib/supabase';
+import { useEffect } from 'react';
+import type { Project, Task, Activity, Role } from '../types';
 
 // ─── Sparklines Config ────────────────────────────────────────────────────────
 const sparklines: Record<string, { path: string; color: string; gradientId: string }> = {
@@ -177,9 +179,145 @@ function cleanActivityMessage(message: string, userName: string) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { workspaces } = useWorkspaceStore();
-  const { user } = useAuthStore();
+  const { workspaces, fetchWorkspaces, projects } = useWorkspaceStore();
+  const { user, profiles } = useAuthStore();
   const { tasks } = useTaskStore();
+  const { activities } = useActivityStore();
+  const { fetchNotifications } = useNotificationsStore();
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!user) return;
+      await fetchWorkspaces();
+      await fetchNotifications();
+    };
+    loadData();
+  }, [user, fetchWorkspaces, fetchNotifications]);
+
+  useEffect(() => {
+    const loadDashboardStats = async () => {
+      if (workspaces.length === 0) return;
+
+      const wsIds = workspaces.map(w => w.id);
+      const projIds = workspaces.flatMap(w => w.projects);
+
+      const { data: dbProjects } = await supabase
+        .from('projects')
+        .select(`
+          *,
+          project_members (
+            role,
+            joined_at,
+            profiles (
+              id,
+              name,
+              email,
+              avatar,
+              bio,
+              skills,
+              github,
+              created_at
+            )
+          )
+        `)
+        .in('workspace_id', wsIds);
+
+      if (dbProjects) {
+        const formattedProjects: Project[] = dbProjects.map((p: any) => {
+          const members = (p.project_members || []).map((m: any) => ({
+            user: {
+              id: m.profiles.id,
+              name: m.profiles.name,
+              email: m.profiles.email,
+              avatar: m.profiles.avatar,
+              bio: m.profiles.bio,
+              skills: m.profiles.skills || [],
+              github: m.profiles.github,
+              createdAt: m.profiles.created_at
+            },
+            role: m.role as Role,
+            joinedAt: m.joined_at
+          }));
+          return {
+            id: p.id,
+            workspaceId: p.workspace_id,
+            name: p.name,
+            description: p.description,
+            color: p.color,
+            members,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at
+          };
+        });
+        useWorkspaceStore.setState({ projects: formattedProjects });
+      }
+
+      if (projIds.length > 0) {
+        const { data: dbTasks } = await supabase
+          .from('tasks')
+          .select(`
+            *,
+            task_comments (
+              *
+            ),
+            task_labels (
+              label
+            )
+          `)
+          .in('project_id', projIds);
+
+        if (dbTasks) {
+          const formattedTasks: Task[] = dbTasks.map((t: any) => ({
+            id: t.id,
+            projectId: t.project_id,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            priority: t.priority,
+            assigneeId: t.assignee_id || undefined,
+            dueDate: t.due_date || undefined,
+            labels: (t.task_labels || []).map((l: any) => l.label),
+            attachments: t.attachments || [],
+            comments: (t.task_comments || []).map((c: any) => ({
+              id: c.id,
+              taskId: c.task_id,
+              userId: c.user_id,
+              content: c.content,
+              mentions: c.mentions || [],
+              createdAt: c.created_at
+            })).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+            order: t.task_order,
+            createdBy: t.created_by,
+            createdAt: t.created_at,
+            updatedAt: t.updated_at
+          }));
+          useTaskStore.setState({ tasks: formattedTasks });
+        }
+      }
+
+      const { data: dbActivities } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .in('workspace_id', wsIds)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (dbActivities) {
+        const formattedActivities: Activity[] = dbActivities.map((a: any) => ({
+          id: a.id,
+          workspaceId: a.workspace_id,
+          projectId: a.project_id || undefined,
+          type: a.type,
+          message: a.message,
+          userId: a.user_id,
+          metadata: a.metadata || undefined,
+          createdAt: a.created_at
+        }));
+        useActivityStore.setState({ activities: formattedActivities });
+      }
+    };
+    loadDashboardStats();
+  }, [workspaces]);
 
   const allTasks = tasks;
   const totalTasks = allTasks.length;
@@ -269,7 +407,7 @@ export function DashboardPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {workspaces.flatMap(ws =>
                     ws.projects.map(pid => {
-                      const project = mockProjects.find((p: { id: string }) => p.id === pid);
+                      const project = projects.find((p: { id: string }) => p.id === pid);
                       if (!project) return null;
                       
                       const projTasks = allTasks.filter(t => t.projectId === pid);
@@ -279,7 +417,7 @@ export function DashboardPage() {
                       // Get dynamic user avatars assigned to tasks in this project
                       const projAssignees = Array.from(
                           new Set(projTasks.map(t => t.assigneeId).filter(Boolean))
-                      ).map(id => getUserById(id!)).filter(Boolean);
+                      ).map(id => profiles[id!]).filter(Boolean);
 
                       return (
                         <div
@@ -381,7 +519,7 @@ export function DashboardPage() {
                       .sort((a, b) => (a.priority < b.priority ? -1 : 1))
                       .slice(0, 5)
                       .map(task => {
-                        const assignee = task.assigneeId ? getUserById(task.assigneeId) : null;
+                        const assignee = task.assigneeId ? profiles[task.assigneeId] : null;
                         return (
                           <div
                             key={task.id}
@@ -466,7 +604,7 @@ export function DashboardPage() {
                 .filter(a => a.workspaceId === workspaces[0].id)
                 .slice(0, 6)
                 .map(act => {
-                  const actor = getUserById(act.userId);
+                  const actor = profiles[act.userId];
                   const cleanMessage = cleanActivityMessage(act.message, actor?.name || '');
                   
                   // Activity node configurations (colors & icons)

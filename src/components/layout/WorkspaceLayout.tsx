@@ -5,7 +5,8 @@ import {
   LayoutDashboard, FileText, Code, Activity, Settings, Plus,
   FolderOpen, CheckSquare, Home, UserPlus,
 } from 'lucide-react';
-import { useWorkspaceStore, useUIStore } from '../../store';
+import { useWorkspaceStore, useUIStore, useAuthStore, useActivityStore } from '../../store';
+import { supabase } from '../../lib/supabase';
 import { Avatar } from '../ui/Avatar';
 import { Modal } from '../ui/Modal';
 import { AIAssistant } from '../ai/AIAssistant';
@@ -18,7 +19,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const { workspaceId, projectId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects } = useWorkspaceStore();
+  const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects, workspaces, fetchWorkspaces } = useWorkspaceStore();
   const {
     sidebarOpen, toggleSidebar,
     aiSidebarOpen, toggleAiSidebar
@@ -42,40 +43,63 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleSendInvite = () => {
+  const handleSendInvite = async () => {
     if (!inviteEmail.trim() || !currentWorkspace) return;
 
-    const newMemberName = inviteEmail.split('@')[0];
-    const formattedName = newMemberName.charAt(0).toUpperCase() + newMemberName.slice(1);
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', inviteEmail.trim())
+        .maybeSingle();
 
-    const newMember = {
-      user: {
-        id: `u-${Date.now()}`,
-        name: formattedName,
-        email: inviteEmail.trim(),
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newMemberName}`,
-        skills: [],
-        createdAt: new Date().toISOString(),
-      },
-      role: inviteRole,
-      joinedAt: new Date().toISOString(),
-    };
+      if (error) throw error;
 
-    const updatedWorkspace = {
-      ...currentWorkspace,
-      members: [...currentWorkspace.members, newMember]
-    };
+      if (!profile) {
+        setToastMessage(`User with email ${inviteEmail.trim()} not found.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
 
-    useWorkspaceStore.setState({
-      currentWorkspace: updatedWorkspace,
-      workspaces: useWorkspaceStore.getState().workspaces.map(w => w.id === currentWorkspace.id ? updatedWorkspace : w)
-    });
+      const alreadyMember = currentWorkspace.members.some(m => m.user.id === profile.id);
+      if (alreadyMember) {
+        setToastMessage(`${profile.name} is already a member.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
 
-    setIsInviteOpen(false);
-    setToastMessage(`Invite sent to ${inviteEmail.trim()}`);
-    setInviteEmail('');
-    setInviteRole('member');
-    setTimeout(() => setToastMessage(null), 3000);
+      const { error: memErr } = await supabase
+        .from('workspace_members')
+        .insert({
+          workspace_id: currentWorkspace.id,
+          user_id: profile.id,
+          role: inviteRole
+        });
+
+      if (memErr) throw memErr;
+
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser) {
+        await useActivityStore.getState().addActivity(
+          currentWorkspace.id,
+          'member_joined',
+          `${profile.name} joined the workspace`,
+          profile.id
+        );
+      }
+
+      await fetchWorkspaces();
+
+      setIsInviteOpen(false);
+      setToastMessage(`Successfully added ${profile.name} to the workspace.`);
+      setInviteEmail('');
+      setInviteRole('member');
+    } catch (err) {
+      console.error(err);
+      setToastMessage('Failed to add workspace member.');
+    } finally {
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   const startResizeLeft = (e: React.MouseEvent) => {
@@ -125,15 +149,21 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }, [isResizingLeft, isResizingRight]);
 
   useEffect(() => {
-    if (workspaceId) {
-      const ws = useWorkspaceStore.getState().workspaces.find(w => w.id === workspaceId);
+    if (workspaces.length === 0) {
+      fetchWorkspaces();
+    }
+  }, [workspaces.length, fetchWorkspaces]);
+
+  useEffect(() => {
+    if (workspaceId && workspaces.length > 0) {
+      const ws = workspaces.find(w => w.id === workspaceId);
       if (ws) {
         setCurrentWorkspace(ws);
         fetchProjects(workspaceId);
       }
     }
     return () => setCurrentWorkspace(null);
-  }, [workspaceId, setCurrentWorkspace, fetchProjects]);
+  }, [workspaceId, workspaces, setCurrentWorkspace, fetchProjects]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

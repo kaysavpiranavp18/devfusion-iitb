@@ -1,10 +1,12 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   LayoutDashboard, FolderKanban, Users, CreditCard, Bell, LogOut,
 } from 'lucide-react';
 import { useAuthStore, useUIStore, useNotificationsStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
+
+import { Logo } from '../ui/Logo';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -16,6 +18,7 @@ const navItems = [
 
 export function Sidebar() {
   const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const { sidebarOpen } = useUIStore();
   const { unreadCount } = useNotificationsStore();
 
@@ -26,13 +29,11 @@ export function Sidebar() {
     )}>
       {/* Logo */}
       <div className={clsx(
-        'flex items-center h-16 px-4 border-b border-hairline shrink-0',
+        'flex items-center h-16 px-4 border-b border-hairline shrink-0 select-none',
         sidebarOpen ? 'justify-between' : 'justify-center',
       )}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-white flex items-center justify-center shrink-0">
-            <span className="text-black font-bold text-sm">D</span>
-          </div>
+          <Logo size="md" className="shrink-0" />
           {sidebarOpen && <span className="font-bold text-lg text-ink">DevCollab</span>}
         </div>
       </div>
@@ -77,7 +78,7 @@ export function Sidebar() {
               <p className="text-sm font-medium text-ink truncate">{user?.name}</p>
               <p className="text-xs text-muted truncate">{user?.email}</p>
             </div>
-            <button onClick={logout} className="p-1.5 hover:bg-surface-elevated text-muted hover:text-body opacity-0 group-hover:opacity-100 transition-all" title="Logout">
+            <button onClick={async () => { await logout(); navigate('/onboarding'); }} className="p-1.5 hover:bg-surface-elevated text-muted hover:text-body opacity-0 group-hover:opacity-100 transition-all" title="Logout">
               <LogOut size={14} />
             </button>
           </div>

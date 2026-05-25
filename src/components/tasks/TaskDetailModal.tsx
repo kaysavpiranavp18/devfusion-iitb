@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import type { Task, TaskComment } from '../../types';
 import { useAuthStore, useTaskStore, useWorkspaceStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
-import { getUserById, users } from '../../data/mock';
+
 
 interface TaskDetailModalProps {
   task: Task;
@@ -18,7 +18,8 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
 
   // Autocomplete Mentions State
   const currentWorkspace = useWorkspaceStore(state => state.currentWorkspace);
-  const teamMembers = currentWorkspace?.members.map(m => m.user) || users;
+  const profiles = useAuthStore(state => state.profiles);
+  const teamMembers = currentWorkspace?.members.map(m => m.user) || Object.values(profiles);
   
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -178,7 +179,7 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
                   className="w-full bg-canvas border border-hairline rounded px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
                 >
                   <option value="">Unassigned</option>
-                  {users.map(u => (
+                  {teamMembers.map(u => (
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
@@ -250,13 +251,13 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
             {/* Comment List */}
             <div className="space-y-4 mb-4">
               {task.comments.map(c => {
-                const commentUser = getUserById(c.userId);
+                const commentUser = profiles[c.userId];
                 return (
                   <div key={c.id} className="flex gap-3 text-left">
                     <Avatar src={commentUser?.avatar} name={commentUser?.name || 'U'} size="sm" className="w-6 h-6 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-ink">{commentUser?.name}</span>
+                        <span className="text-xs font-bold text-ink">{commentUser?.name || 'Someone'}</span>
                         <span className="text-[10px] text-muted">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
                       </div>
                       <p className="text-xs text-body leading-relaxed">{c.content}</p>

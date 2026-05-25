@@ -8,29 +8,43 @@ export interface FileSystemNode {
 }
 
 export const mockFiles: Record<string, string> = {
-  'App.tsx': `import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+  'App.tsx': `import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuthStore } from './store';
+import { supabase } from './lib/supabase';
 import { TopNavbar } from './components/layout/TopNavbar';
 
 // Pages
 import { LoginPage, RegisterPage } from './pages/LoginPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { WorkspacesPage } from './pages/WorkspacesPage';
-import { WorkspaceOverviewPage } from './pages/WorkspaceOverviewPage';
-import { ProjectBoardPage } from './pages/ProjectBoardPage';
-import { ProjectTasksPage } from './pages/ProjectTasksPage';
-import { ProjectDocsPage } from './pages/ProjectDocsPage';
-import { ProjectSnippetsPage } from './pages/ProjectSnippetsPage';
-import { ProjectActivityPage } from './pages/ProjectActivityPage';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuthStore();
+  
+  if (loading) {
+    return (
+      <div className="h-screen w-screen bg-canvas flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-xs text-muted font-medium uppercase tracking-wider">Loading your session...</p>
+      </div>
+    );
+  }
+  
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
 
 export default function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { user } = useAuthStore();
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+        <Route path="/onboarding" element={user ? <Navigate to="/dashboard" replace /> : <OnboardingPage />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
         
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />

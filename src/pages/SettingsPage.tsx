@@ -29,7 +29,7 @@ export function SettingsPage() {
   // Appearance states
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [compactMode, setCompactMode] = useState(false);
-  const [activeAccent, setActiveAccent] = useState('indigo');
+  const [activeAccent, setActiveAccent] = useState('rose');
 
   // Security states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -42,23 +42,22 @@ export function SettingsPage() {
 
   // Load custom theme accent on mount
   useEffect(() => {
-    const savedAccent = localStorage.getItem('themeAccent');
-    if (savedAccent) {
+    const checkTheme = () => {
+      const savedAccent = localStorage.getItem('themeAccent') || 'rose';
       setActiveAccent(savedAccent);
-    }
+    };
+    checkTheme();
+    window.addEventListener('theme-changed', checkTheme);
+    return () => {
+      window.removeEventListener('theme-changed', checkTheme);
+    };
   }, []);
 
   const changeAccent = (accentId: string) => {
-    const accent = THEME_ACCENTS.find(a => a.id === accentId);
-    if (accent) {
-      setActiveAccent(accentId);
-      document.documentElement.style.setProperty('--color-primary', accent.primary);
-      document.documentElement.style.setProperty('--color-m-blue-light', accent.primary);
-      document.documentElement.style.setProperty('--color-m-blue-dark', accent.blueDark);
-      document.documentElement.style.setProperty('--color-electric-blue', accent.primary);
-      localStorage.setItem('themeAccent', accentId);
-      triggerToast('Color theme accent updated successfully!');
-    }
+    localStorage.setItem('themeAccent', accentId);
+    setActiveAccent(accentId);
+    window.dispatchEvent(new Event('theme-changed'));
+    triggerToast('Color theme accent updated successfully!');
   };
 
   const triggerToast = (msg: string) => {

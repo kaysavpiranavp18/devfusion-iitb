@@ -2,12 +2,36 @@ import { Check, Crown, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../components/ui/Button';
 import { plans } from '../data/mock';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../components/ui/Modal';
+import { useWorkspaceStore } from '../store';
+import { supabase } from '../lib/supabase';
 
 export function PaymentsPage() {
+  const { currentWorkspace, fetchWorkspaces } = useWorkspaceStore();
+  const currentPlan = currentWorkspace?.plan || 'free';
   const [selectedPlan, setSelectedPlan] = useState('free');
-  const currentPlan = 'free';
+  const [dbPlans, setDbPlans] = useState<any[]>(plans);
+
+  useEffect(() => {
+    const fetchDbPlans = async () => {
+      try {
+        const { data, error } = await supabase.from('plans').select('*');
+        if (!error && data && data.length > 0) {
+          setDbPlans(data.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            features: p.features || [],
+            limits: p.limits || {}
+          })));
+        }
+      } catch (err) {
+        console.error('Error fetching plans:', err);
+      }
+    };
+    fetchDbPlans();
+  }, []);
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -17,13 +41,25 @@ export function PaymentsPage() {
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
 
-  const handlePay = (e: React.FormEvent) => {
+  const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      if (currentWorkspace) {
+        const { error } = await supabase
+          .from('workspaces')
+          .update({ plan: 'pro' })
+          .eq('id', currentWorkspace.id);
+        
+        if (error) throw error;
+        await fetchWorkspaces();
+      }
       setIsSuccess(true);
-    }, 1500);
+    } catch (err) {
+      console.error('Error upgrading plan:', err);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClose = () => {
@@ -52,7 +88,7 @@ export function PaymentsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            {plans.map(plan => {
+            {dbPlans.map(plan => {
               const isCurrent = plan.id === currentPlan;
               const isSelected = selectedPlan === plan.id;
               return (
@@ -84,7 +120,7 @@ export function PaymentsPage() {
                   </div>
 
                   <ul className="space-y-3 mb-6">
-                    {plan.features.map(feature => (
+                    {plan.features.map((feature: string) => (
                       <li key={feature} className="flex items-start gap-2 text-xs text-muted font-light">
                         <Check size={14} className="text-semantic-success mt-0.5 shrink-0" />
                         {feature}
