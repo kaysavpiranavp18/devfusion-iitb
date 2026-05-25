@@ -3,12 +3,12 @@ import { Search, ArrowUpDown, Calendar, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import type { Task, Priority, TaskStatus } from '../../types';
-import { useTaskStore } from '../../store';
+import { useTaskStore, useAuthStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { Badge, PriorityBadge } from '../ui/Badge';
 import { TaskDetailModal } from './TaskDetailModal';
 import { CreateTaskModal } from './CreateTaskModal';
-import { getUserById } from '../../data/mock';
+import { useEffect } from 'react';
 
 interface TaskListViewProps {
   projectId: string;
@@ -17,7 +17,8 @@ interface TaskListViewProps {
 type SortField = 'priority' | 'dueDate' | 'status' | 'title';
 
 export function TaskListView({ projectId }: TaskListViewProps) {
-  const { tasks } = useTaskStore();
+  const { tasks, fetchTasks } = useTaskStore();
+  const { profiles } = useAuthStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
@@ -25,6 +26,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  useEffect(() => {
+    if (projectId) {
+      fetchTasks(projectId);
+    }
+  }, [projectId, fetchTasks]);
 
   const projectTasks = tasks.filter(t => t.projectId === projectId);
 
@@ -155,8 +162,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                   <td className="px-4 py-3.5">
                     {task.assigneeId ? (
                       <div className="flex items-center gap-2">
-                        <Avatar src={getUserById(task.assigneeId)?.avatar} name={getUserById(task.assigneeId)?.name || 'U'} size="sm" />
-                        <span className="text-sm text-body">{getUserById(task.assigneeId)?.name}</span>
+                        <Avatar src={profiles[task.assigneeId]?.avatar} name={profiles[task.assigneeId]?.name || 'U'} size="sm" />
+                        <span className="text-sm text-body">{profiles[task.assigneeId]?.name}</span>
                       </div>
                     ) : (
                       <span className="text-sm text-muted">—</span>
@@ -227,8 +234,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
               <div className="flex items-center gap-2">
                 {task.assigneeId ? (
                   <div className="flex items-center gap-1.5">
-                    <Avatar src={getUserById(task.assigneeId)?.avatar} name={getUserById(task.assigneeId)?.name || 'U'} size="sm" className="w-5 h-5" />
-                    <span className="text-muted text-[11px] max-w-[85px] truncate">{getUserById(task.assigneeId)?.name}</span>
+                    <Avatar src={profiles[task.assigneeId]?.avatar} name={profiles[task.assigneeId]?.name || 'U'} size="sm" className="w-5 h-5" />
+                    <span className="text-muted text-[11px] max-w-[85px] truncate">{profiles[task.assigneeId]?.name}</span>
                   </div>
                 ) : (
                   <span className="text-muted text-[11px]">—</span>

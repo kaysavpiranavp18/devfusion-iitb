@@ -5,12 +5,13 @@ import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout';
 import { DocEditor } from '../components/docs/DocEditor';
-import { documents as initialDocs } from '../data/mock';
 import type { DocPage } from '../types';
+import { useDocsStore, useAuthStore } from '../store';
 
 export function ProjectDocsPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const [docs, setDocs] = useState(initialDocs.filter(d => d.projectId === projectId));
+  const { docs, fetchDocs, addDoc, updateDoc } = useDocsStore();
+  const { user } = useAuthStore();
   const [activeDoc, setActiveDoc] = useState<DocPage | null>(null);
 
   // States and hooks for left panel resizing
@@ -22,6 +23,22 @@ export function ProjectDocsPage() {
     e.preventDefault();
     setIsResizingPanel(true);
   };
+
+  useEffect(() => {
+    if (projectId) {
+      fetchDocs(projectId);
+      setActiveDoc(null);
+    }
+  }, [projectId, fetchDocs]);
+
+  useEffect(() => {
+    if (activeDoc) {
+      const current = docs.find(d => d.id === activeDoc.id);
+      if (current) {
+        setActiveDoc(current);
+      }
+    }
+  }, [docs, activeDoc?.id]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -53,33 +70,34 @@ export function ProjectDocsPage() {
     };
   }, [isResizingPanel]);
 
-  const handleSave = (content: string) => {
+  const handleSave = async (content: string) => {
     if (!activeDoc) return;
-    const updated = {
-      ...activeDoc,
+    await updateDoc(activeDoc.id, {
       content,
       version: activeDoc.version + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    setDocs(prev => prev.map(d => d.id === updated.id ? updated : d));
-    setActiveDoc(updated);
+      title: activeDoc.title
+    });
   };
 
-  const createDoc = () => {
+  const createDoc = async () => {
+    if (!user || !projectId) return;
     const newDoc: DocPage = {
       id: `d${Date.now()}`,
-      projectId: projectId!,
+      projectId: projectId,
       title: 'Untitled Document',
       content: '',
       linkedPages: [],
       version: 1,
-      versions: [{ version: 1, content: '', updatedBy: 'u1', updatedAt: new Date().toISOString() }],
-      createdBy: 'u1',
+      versions: [],
+      createdBy: user.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setDocs(prev => [...prev, newDoc]);
-    setActiveDoc(newDoc);
+    const newId = await addDoc(newDoc);
+    if (newId) {
+      const created = docs.find(d => d.id === newId) || { ...newDoc, id: newId };
+      setActiveDoc(created);
+    }
   };
 
   return (

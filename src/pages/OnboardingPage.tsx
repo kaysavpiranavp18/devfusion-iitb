@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { clsx } from 'clsx';
+import { Logo } from '../components/ui/Logo';
 
 const THEMES = [
   { id: 'indigo', primary: '#6366f1', bg: 'bg-[#6366f1]', label: 'Indigo' },
@@ -16,7 +17,7 @@ const THEMES = [
 ];
 
 export function OnboardingPage() {
-  const { login } = useAuthStore();
+  const { signIn, signUp, signInWithGoogle, signInWithGitHub } = useAuthStore();
   const navigate = useNavigate();
   
   // Auth state
@@ -25,24 +26,20 @@ export function OnboardingPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Carousel slider state
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Theme preview state
-  const [selectedTheme, setSelectedTheme] = useState('indigo');
-
-  // Simulated Google Auth Modal
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleStep, setGoogleStep] = useState<'select' | 'loading'>('select');
+  const [selectedTheme, setSelectedTheme] = useState('rose');
 
   useEffect(() => {
     // Apply selected theme variables dynamically to this page
     const theme = THEMES.find(t => t.id === selectedTheme);
     if (theme) {
-      document.documentElement.style.setProperty('--color-primary', theme.primary);
-      document.documentElement.style.setProperty('--color-electric-blue', theme.primary);
       localStorage.setItem('themeAccent', theme.id);
+      window.dispatchEvent(new Event('theme-changed'));
     }
   }, [selectedTheme]);
 
@@ -54,28 +51,50 @@ export function OnboardingPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Error message toast timeout
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    await login(email, password);
-    setLoading(false);
-    navigate('/dashboard');
+    setError(null);
+    try {
+      if (isSignUp) {
+        await signUp(email, password, fullName || email.split('@')[0]);
+      } else {
+        await signIn(email, password);
+      }
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error(err);
+      if (err.message?.toLowerCase().includes('invalid login credentials') || err.message?.toLowerCase().includes('invalid credentials')) {
+        setError('Incorrect email or password. The user does not exist or credentials are invalid.');
+      } else {
+        setError(err.message || 'Authentication failed. Please check your credentials.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleLogin = async () => {
-    setGoogleStep('select');
-    setShowGoogleModal(true);
-  };
-
-  const proceedGoogleLogin = async () => {
-    setGoogleStep('loading');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    await login('alex.rivera@gmail.com', 'password');
-    setShowGoogleModal(false);
-    navigate('/dashboard');
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
+    setError(null);
+    try {
+      if (provider === 'google') {
+        await signInWithGoogle();
+      } else {
+        await signInWithGitHub();
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || `${provider === 'google' ? 'Google' : 'GitHub'} OAuth failed to initialize.`);
+    }
   };
 
   return (
@@ -135,29 +154,8 @@ export function OnboardingPage() {
         
         {/* Header Branding */}
         <div className="flex items-center gap-3">
-          {/* Animated SVG Logo */}
-          <div className="w-12 h-12 flex items-center justify-center relative group">
-            <svg className="w-full h-full" viewBox="0 0 100 100">
-              <defs>
-                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="3.5" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              {/* Spinning orbiting outer tracks */}
-              <circle cx="50" cy="50" r="44" stroke="var(--color-primary)" strokeWidth="1.5" fill="none" strokeDasharray="30 150" className="animate-[spin_6s_linear_infinite]" opacity="0.6" filter="url(#glow)" />
-              <circle cx="50" cy="50" r="44" stroke="var(--color-primary)" strokeWidth="0.75" fill="none" strokeDasharray="100 200" className="animate-[spin_10s_linear_infinite_reverse]" opacity="0.35" />
-              
-              {/* "D" Shape in Primary Accent */}
-              <path d="M 38 28 L 38 72 M 38 28 C 60 28, 60 72, 38 72" stroke="var(--color-primary)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" fill="none" filter="url(#glow)" className="logo-path" />
-              
-              {/* "C" Shape in White */}
-              <path d="M 63 38 C 50 30, 42 42, 42 50 C 42 58, 50 70, 63 62" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" className="logo-path-white" />
-            </svg>
-          </div>
+          {/* Logo */}
+          <Logo size="lg" />
           <div>
             <span className="font-extrabold text-lg text-[#ffffff] tracking-wider block leading-none">DEVCOLLAB</span>
             <span className="text-[10px] text-muted tracking-widest uppercase">Next-gen Workspace</span>
@@ -338,6 +336,12 @@ export function OnboardingPage() {
               </p>
             </div>
 
+            {error && (
+              <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl text-left select-text">
+                {error}
+              </div>
+            )}
+
             {/* Email Form */}
             <form onSubmit={handleEmailSubmit} className="space-y-4">
               {isSignUp && (
@@ -411,14 +415,14 @@ export function OnboardingPage() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={() => handleSocialLogin('google')}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-[#070a10] border border-[#30363d]/60 hover:bg-[#161b22] text-xs font-semibold text-[#ffffff] transition-all rounded-xl cursor-pointer active:scale-95 border-none"
               >
                 <Mail size={14} className="text-[#ea4335]" /> Google
               </button>
               <button
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={() => handleSocialLogin('github')}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-[#070a10] border border-[#30363d]/60 hover:bg-[#161b22] text-xs font-semibold text-[#ffffff] transition-all rounded-xl cursor-pointer active:scale-95 border-none"
               >
                 <GitPullRequest size={14} className="text-white" /> GitHub
@@ -441,80 +445,19 @@ export function OnboardingPage() {
         </div>
       </div>
 
-      {/* Simulated Google Authenticating Dialog Modal */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-[#0d1117] border border-[#30363d]/80 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Header window-style bar */}
-            <div className="bg-[#161b22] border-b border-[#30363d]/70 px-4 py-2.5 flex items-center justify-between select-none">
-              <div className="flex items-center gap-1.5">
-                <Mail size={14} className="text-[#ea4335]" />
-                <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Sign in with Google</span>
-              </div>
-              <button
-                onClick={() => setShowGoogleModal(false)}
-                className="text-muted hover:text-white transition-colors border-none bg-transparent cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
 
-            {googleStep === 'select' ? (
-              /* Step 1: Select Account */
-              <div className="p-6 space-y-4">
-                <div className="text-center">
-                  <div className="inline-flex w-10 h-10 bg-white/5 border border-white/10 rounded-full items-center justify-center mb-2">
-                    <Mail size={18} className="text-[#ea4335]" />
-                  </div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Choose an Account</h3>
-                  <p className="text-[10px] text-muted mt-0.5">to continue to DevCollab securely</p>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={proceedGoogleLogin}
-                    className="w-full p-3 bg-[#070a10] border border-[#30363d]/60 rounded-xl hover:bg-white/5 transition-all text-left flex items-center gap-3 cursor-pointer"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-[#f43f5e] flex items-center justify-center text-[10px] font-extrabold text-white">AR</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold text-white leading-none">Alex Rivera</p>
-                      <p className="text-[9px] text-muted mt-0.5">alex.rivera@gmail.com</p>
-                    </div>
-                    <span className="text-[8px] bg-white/10 text-muted px-1.5 py-0.5 rounded">Default</span>
-                  </button>
-
-                  <button
-                    onClick={proceedGoogleLogin}
-                    className="w-full p-3 bg-[#070a10] border border-[#30363d]/60 rounded-xl hover:bg-white/5 transition-all text-left flex items-center gap-3 cursor-pointer opacity-70"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-[#30363d] flex items-center justify-center text-[10px] font-extrabold text-white">Guest</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold text-white leading-none">Use guest account</p>
-                      <p className="text-[9px] text-muted mt-0.5">guest@devcollab.net</p>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="flex justify-between items-center text-[8px] text-muted pt-2 border-t border-[#30363d]/30">
-                  <span>Authorized DevCollab API</span>
-                  <span className="hover:underline cursor-pointer">Privacy Policy</span>
-                </div>
-              </div>
-            ) : (
-              /* Step 2: Authenticating Spinner */
-              <div className="p-10 flex flex-col items-center justify-center space-y-4">
-                <div className="relative flex items-center justify-center">
-                  {/* Spinner */}
-                  <div className="w-12 h-12 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                  <Mail size={18} className="absolute text-[#ea4335]" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Securing Connection</h3>
-                  <p className="text-[10px] text-muted mt-0.5">Logging you into your dev workspace...</p>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Success/Error Alert toast notification */}
+      {error && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[#13131a] border border-[#1e1e2e]/80 text-[#c9d1d9] text-xs px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center gap-2 border-l-4 border-l-rose-500 select-text rounded-lg">
+          <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+          <span className="font-semibold">{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="ml-2 text-[#64748b] hover:text-white transition-colors bg-transparent border-none cursor-pointer p-0 flex items-center justify-center shrink-0"
+            title="Dismiss error"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 

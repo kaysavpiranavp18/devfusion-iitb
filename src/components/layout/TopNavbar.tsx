@@ -10,6 +10,8 @@ import { useAuthStore, useNotificationsStore, useUIStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { Modal } from '../ui/Modal';
 
+import { Logo } from '../ui/Logo';
+
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/workspaces', icon: FolderKanban, label: 'Workspaces' },
@@ -56,7 +58,7 @@ export function TopNavbar() {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [isThemesOpen, setIsThemesOpen] = useState(false);
-  const [activeAccent, setActiveAccent] = useState('indigo');
+  const [activeAccent, setActiveAccent] = useState('rose');
 
   const toggleUserDropdown = () => {
     setUserDropdownOpen(!userDropdownOpen);
@@ -69,29 +71,21 @@ export function TopNavbar() {
   };
 
   useEffect(() => {
-    const savedAccent = localStorage.getItem('themeAccent');
-    if (savedAccent) {
+    const checkTheme = () => {
+      const savedAccent = localStorage.getItem('themeAccent') || 'rose';
       setActiveAccent(savedAccent);
-      const accent = THEME_ACCENTS.find(a => a.id === savedAccent);
-      if (accent) {
-        document.documentElement.style.setProperty('--color-primary', accent.primary);
-        document.documentElement.style.setProperty('--color-m-blue-light', accent.primary);
-        document.documentElement.style.setProperty('--color-m-blue-dark', accent.blueDark);
-        document.documentElement.style.setProperty('--color-electric-blue', accent.primary);
-      }
-    }
+    };
+    checkTheme();
+    window.addEventListener('theme-changed', checkTheme);
+    return () => {
+      window.removeEventListener('theme-changed', checkTheme);
+    };
   }, []);
 
   const changeAccent = (accentId: string) => {
-    const accent = THEME_ACCENTS.find(a => a.id === accentId);
-    if (accent) {
-      setActiveAccent(accentId);
-      document.documentElement.style.setProperty('--color-primary', accent.primary);
-      document.documentElement.style.setProperty('--color-m-blue-light', accent.primary);
-      document.documentElement.style.setProperty('--color-m-blue-dark', accent.blueDark);
-      document.documentElement.style.setProperty('--color-electric-blue', accent.primary);
-      localStorage.setItem('themeAccent', accentId);
-    }
+    localStorage.setItem('themeAccent', accentId);
+    setActiveAccent(accentId);
+    window.dispatchEvent(new Event('theme-changed'));
   };
 
   return (
@@ -107,10 +101,8 @@ export function TopNavbar() {
           {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
         </button>
 
-        <Link to="/dashboard" className="flex items-center gap-2 group">
-          <div className="w-5 h-5 bg-white flex items-center justify-center transition-transform group-hover:scale-105 rounded-sm">
-            <span className="text-black font-extrabold text-[10px]">D</span>
-          </div>
+        <Link to="/dashboard" className="flex items-center gap-2 group select-none">
+          <Logo size="sm" className="transition-transform group-hover:scale-105 shrink-0" />
           <span className="font-bold text-xs text-ink tracking-tight group-hover:text-ink/90 transition-colors">
             DevCollab
           </span>
@@ -298,9 +290,10 @@ export function TopNavbar() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUserDropdownOpen(false);
+                    navigate('/onboarding');
                   }}
                   className="w-full text-left px-3 py-1.5 text-xs text-muted hover:text-semantic-danger hover:bg-white/5 transition-colors cursor-pointer border-none bg-transparent"
                 >

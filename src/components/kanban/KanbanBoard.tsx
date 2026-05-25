@@ -3,12 +3,11 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { Plus, Calendar, MessageSquare } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Task, TaskStatus } from '../../types';
-import { useTaskStore, useAuthStore, useNotificationsStore } from '../../store';
+import { useTaskStore, useAuthStore, useNotificationsStore, useWorkspaceStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { TaskDetailModal } from '../tasks/TaskDetailModal';
 import { CreateTaskModal } from '../tasks/CreateTaskModal';
 import { format } from 'date-fns';
-import { getUserById, users } from '../../data/mock';
 
 const columns: { id: TaskStatus; title: string }[] = [
   { id: 'todo', title: 'To Do' },
@@ -33,6 +32,7 @@ interface TaskCardProps {
 function TaskCard({ task, index, onClick }: TaskCardProps) {
   const [isTitleTwoLines, setIsTitleTwoLines] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const profiles = useAuthStore(state => state.profiles);
 
   useEffect(() => {
     if (titleRef.current) {
@@ -118,8 +118,8 @@ function TaskCard({ task, index, onClick }: TaskCardProps) {
               )}
               {task.assigneeId && (
                 <Avatar
-                  src={getUserById(task.assigneeId)?.avatar}
-                  name={getUserById(task.assigneeId)?.name || 'U'}
+                  src={profiles[task.assigneeId]?.avatar}
+                  name={profiles[task.assigneeId]?.name || 'U'}
                   size="xs"
                 />
               )}
@@ -132,56 +132,63 @@ function TaskCard({ task, index, onClick }: TaskCardProps) {
 }
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
-  const { tasks, updateTaskStatus } = useTaskStore();
+  const { tasks, updateTaskStatus, fetchTasks } = useTaskStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createColumn, setCreateColumn] = useState<TaskStatus>('todo');
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
+  useEffect(() => {
+    if (projectId) {
+      fetchTasks(projectId);
+    }
+  }, [projectId, fetchTasks]);
+
   // Presence states
+  const currentWorkspace = useWorkspaceStore(state => state.currentWorkspace);
   const [showPresence, setShowPresence] = useState(false);
   const [presenceText, setPresenceText] = useState('');
   const [presentUsers, setPresentUsers] = useState<any[]>([]);
 
   useEffect(() => {
-    // 3 seconds: show Priya Sharma
+    const otherMembers = currentWorkspace?.members
+      .filter(m => m.user.id !== useAuthStore.getState().user?.id)
+      .map(m => m.user) || [];
+
+    if (otherMembers.length === 0) {
+      setShowPresence(false);
+      return;
+    }
+
+    // 3 seconds: show first other member
+    const firstMember = otherMembers[0];
     const timeout = setTimeout(() => {
-      const priya = users.find(u => u.id === 'u2');
-      if (priya) {
-        setPresentUsers([priya]);
-        setPresenceText("Priya Sharma is viewing this board");
-        setShowPresence(true);
-      }
+      setPresentUsers([firstMember]);
+      setPresenceText(`${firstMember.name} is viewing this board`);
+      setShowPresence(true);
     }, 3000);
 
-    const cycle = [
-      { id: 'u3', name: 'Marcus Chen', action: 'joined this board' },
-      { id: 'u4', name: 'Sarah Johnson', action: 'is viewing this board' },
-      { id: 'u5', name: 'David Kim', action: 'joined this board' },
-      { id: 'u2', name: 'Priya Sharma', action: 'is viewing this board' },
-    ];
     let index = 0;
-
     const interval = setInterval(() => {
-      const current = cycle[index];
-      const member = users.find(u => u.id === current.id);
-      if (member) {
-        setPresentUsers(prev => {
-          if (!prev.some(u => u.id === member.id)) {
-            return [...prev, member];
-          }
-          return prev;
-        });
-        setPresenceText(`${current.name} ${current.action}`);
-      }
-      index = (index + 1) % cycle.length;
+      if (otherMembers.length === 0) return;
+      const member = otherMembers[index];
+      setPresentUsers(prev => {
+        if (!prev.some(u => u.id === member.id)) {
+          return [...prev, member];
+        }
+        return prev;
+      });
+      const actions = ['is viewing this board', 'joined this board', 'is editing a task'];
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      setPresenceText(`${member.name} ${action}`);
+      index = (index + 1) % otherMembers.length;
     }, 8000);
 
     return () => {
       clearTimeout(timeout);
       clearInterval(interval);
     };
-  }, []);
+  }, [currentWorkspace]);
 
   useEffect(() => {
     setLocalTasks(tasks.filter(t => t.projectId === projectId));
@@ -202,6 +209,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
       // Dynamic notification for task moved
       const task = localTasks.find(t => t.id === draggableId);
       const currentUser = useAuthStore.getState().user;
+      const currentWorkspace = useWorkspaceStore.getState().currentWorkspace;
       if (task && currentUser) {
         const statusLabels: Record<string, string> = {
           todo: 'To Do',
@@ -213,11 +221,11 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
           id: `n-${Date.now()}`,
           userId: currentUser.id,
           title: 'Task Moved',
-          message: `${currentUser.name} moved '${task.title}' to ${statusLabels[newStatus] || newStatus}`,
+          message: `${currentUser.user_metadata?.full_name || currentUser.name || 'Someone'} moved '${task.title}' to ${statusLabels[newStatus] || newStatus}`,
           read: false,
           createdAt: new Date().toISOString(),
           type: 'task',
-          link: `/workspace/w1/project/${task.projectId}/board`
+          link: `/workspace/${currentWorkspace?.id || 'w1'}/project/${task.projectId}/board`
         });
       }
     }

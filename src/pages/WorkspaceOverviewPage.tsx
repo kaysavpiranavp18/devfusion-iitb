@@ -5,13 +5,12 @@ import {
   Sparkles, LayoutDashboard,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useWorkspaceStore, useTaskStore, useAuthStore } from '../store';
+import { useWorkspaceStore, useTaskStore, useAuthStore, useActivityStore } from '../store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout';
 import { Modal } from '../components/ui/Modal';
-import { activities } from '../data/mock';
 import { formatDistanceToNow } from 'date-fns';
 import type { Project } from '../types';
 
@@ -24,6 +23,7 @@ export function WorkspaceOverviewPage() {
   } = useWorkspaceStore();
   const { tasks } = useTaskStore();
   const { user } = useAuthStore();
+  const { activities, fetchActivities } = useActivityStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [projectName, setProjectName] = useState('');
@@ -82,10 +82,11 @@ export function WorkspaceOverviewPage() {
       if (ws) {
         setCurrentWorkspace(ws);
         fetchProjects(workspaceId);
+        fetchActivities(workspaceId);
       }
     }
     return () => setCurrentWorkspace(null);
-  }, [workspaceId, setCurrentWorkspace, fetchProjects, workspaces]);
+  }, [workspaceId, setCurrentWorkspace, fetchProjects, workspaces, fetchActivities]);
 
   if (!workspaceId) return null;
 
