@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { useSnippetStore, useUIStore, useAuthStore } from '../../store';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
+import { Modal } from '../ui/Modal';
 
 interface SnippetListProps {
   projectId: string;
@@ -414,16 +415,21 @@ export function SnippetList({ projectId }: SnippetListProps) {
         </Button>
       </div>
 
-      {/* Add form */}
-      {showForm && (
-        <div className="bg-[#0b0f17] border border-primary/20 p-5 mb-6 rounded-xl space-y-4 shadow-xl relative overflow-hidden transition-all duration-300">
-          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-indigo-500" />
-          
-          <div className="flex items-center gap-2 pb-2 border-b border-[#1e1e2e]">
-            <Sparkles size={14} className="text-primary animate-pulse" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">Create New Snippet</h3>
-          </div>
-
+      {/* Add form modal */}
+      <Modal
+        open={showForm}
+        onClose={() => {
+          setNewTitle('');
+          setNewCode('');
+          setNewDesc('');
+          setNewTags('');
+          setNewFilename('');
+          setShowForm(false);
+        }}
+        title="Create New Snippet"
+        size="lg"
+      >
+        <div className="space-y-4 text-left">
           {/* File Drag and Drop zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -457,7 +463,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 value={newTitle}
                 onChange={e => setNewTitle(e.target.value)}
                 placeholder="e.g. useDebounce hook"
-                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all font-medium"
                 required
               />
             </div>
@@ -468,7 +474,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 value={newFilename}
                 onChange={e => handleFilenameChange(e.target.value)}
                 placeholder="e.g. useDebounce.ts"
-                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all font-mono"
               />
             </div>
 
@@ -477,10 +483,10 @@ export function SnippetList({ projectId }: SnippetListProps) {
               <select
                 value={newLang}
                 onChange={e => setNewLang(e.target.value)}
-                className="w-full border border-hairline bg-canvas text-ink px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer font-semibold"
+                className="w-full border border-hairline bg-canvas text-ink px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer font-semibold"
               >
                 {['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'cpp', 'css', 'html'].map(l => (
-                  <option key={l} value={l}>{l.toUpperCase()}</option>
+                  <option key={l} value={l} className="bg-[#0a0a0f]">{l.toUpperCase()}</option>
                 ))}
               </select>
             </div>
@@ -493,7 +499,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
                 placeholder="Briefly describe what this snippet does"
-                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
               />
             </div>
             
@@ -503,7 +509,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 value={newTags}
                 onChange={e => setNewTags(e.target.value)}
                 placeholder="comma-separated list, e.g. react, hooks"
-                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 px-3.5 py-2.5 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -514,12 +520,12 @@ export function SnippetList({ projectId }: SnippetListProps) {
               value={newCode}
               onChange={e => setNewCode(e.target.value)}
               placeholder="Paste or write your code snippet here..."
-              rows={6}
-              className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 p-4 text-xs font-mono rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+              rows={8}
+              className="w-full border border-hairline bg-canvas text-ink placeholder:text-muted/50 p-4 text-xs font-mono rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-y"
             />
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-2 border-t border-[#1e1e2e]">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-hairline">
             <button
               type="button"
               onClick={() => {
@@ -530,7 +536,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
                 setNewFilename('');
                 setShowForm(false);
               }}
-              className="px-4 py-2 text-xs font-semibold text-muted hover:text-ink bg-transparent hover:bg-white/5 border border-[#1e1e2e] rounded-lg transition-all cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-muted hover:text-ink bg-white/5 hover:bg-white/10 rounded-lg transition-all cursor-pointer border-none"
             >
               Cancel
             </button>
@@ -544,7 +550,7 @@ export function SnippetList({ projectId }: SnippetListProps) {
             </Button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Two-panel layout */}
       <div className="flex border border-[#1e1e2e] rounded-xl bg-[#0d0d14] flex-1 min-h-0 overflow-hidden mt-2 relative">

@@ -1,27 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   GitPullRequest, Calendar, Edit3, Save, X, ListTodo, 
   CheckCircle2, Percent, Sparkles, Award
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuthStore, useTaskStore } from '../store';
+import { useAuthStore } from '../store';
+import { supabase } from '../lib/supabase';
 import { Avatar } from '../components/ui/Avatar';
 import { Card, CardContent } from '../components/ui/Card';
 
 export function ProfilePage() {
   const { user, updateProfile } = useAuthStore();
-  const { tasks } = useTaskStore();
   
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
   const [github, setGithub] = useState(user?.github || '');
   const [skills, setSkills] = useState<string[]>(user?.skills || []);
   const [skillInput, setSkillInput] = useState('');
+  const [userTasks, setUserTasks] = useState<{status: string; assigneeId: string}[]>([]);
+
+  useEffect(() => {
+    const fetchUserTasks = async () => {
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('status, assignee_id')
+        .eq('assignee_id', user.id);
+      if (!error && data) {
+        setUserTasks(data.map((t: any) => ({ status: t.status, assigneeId: t.assignee_id })));
+      }
+    };
+    fetchUserTasks();
+  }, [user?.id]);
 
   if (!user) return null;
 
-  const completedTasks = tasks.filter(t => t.status === 'done' && t.assigneeId === user.id).length;
-  const assignedTasks = tasks.filter(t => t.assigneeId === user.id).length;
+  const completedTasks = userTasks.filter(t => t.status === 'done').length;
+  const assignedTasks = userTasks.length;
 
   const addSkill = () => {
     if (skillInput.trim() && !skills.includes(skillInput.trim())) {

@@ -70,12 +70,12 @@ export function ProjectDocsPage() {
     };
   }, [isResizingPanel]);
 
-  const handleSave = async (content: string) => {
+  const handleSave = async (title: string, content: string) => {
     if (!activeDoc) return;
     await updateDoc(activeDoc.id, {
+      title,
       content,
-      version: activeDoc.version + 1,
-      title: activeDoc.title
+      version: activeDoc.version + 1
     });
   };
 

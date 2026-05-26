@@ -80,51 +80,55 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    let subscription: any = null;
+
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+
         if (session?.user) {
           useAuthStore.setState({ user: session.user, isAuthenticated: true });
           await useAuthStore.getState().fetchProfile();
+        } else {
+          useAuthStore.setState({ user: null, profile: null, isAuthenticated: false });
         }
       } catch (err) {
         console.error('initAuth failed:', err);
       } finally {
-        useAuthStore.setState({ loading: false });
+        if (active) {
+          useAuthStore.setState({ loading: false });
+        }
       }
+
+      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const userObj = session?.user || null;
+        const currentUser = useAuthStore.getState().user;
+
+        try {
+          if (userObj) {
+            if (!currentUser || currentUser.id !== userObj.id) {
+              useAuthStore.setState({ user: userObj, isAuthenticated: true, loading: true });
+              await useAuthStore.getState().fetchProfile();
+            }
+          } else {
+            useAuthStore.setState({ user: null, profile: null, isAuthenticated: false });
+          }
+        } catch (err) {
+          console.error('onAuthStateChange failed:', err);
+        } finally {
+          useAuthStore.setState({ loading: false });
+        }
+      });
+      subscription = data.subscription;
     };
+
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        if (event === 'SIGNED_IN' && session) {
-          const { error } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error && error.code === 'PGRST116') {
-            await supabase.from('profiles').insert({
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || session.user.email || 'Google User',
-              avatar: session.user.user_metadata?.avatar_url || 
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email || session.user.id}`,
-              skills: [],
-            });
-          }
-          await useAuthStore.getState().fetchProfile();
-        }
-      } catch (err) {
-        console.error('onAuthStateChange failed:', err);
-      } finally {
-        useAuthStore.setState({ loading: false });
-      }
-    });
-
     return () => {
-      subscription.unsubscribe();
+      active = false;
+      if (subscription) subscription.unsubscribe();
     };
   }, []);
 

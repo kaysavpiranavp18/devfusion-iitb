@@ -1,7 +1,7 @@
 import { Check, Crown, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../components/ui/Button';
-import { plans } from '../data/mock';
+import type { Plan } from '../types';
 import { useState, useEffect } from 'react';
 import { Modal } from '../components/ui/Modal';
 import { useWorkspaceStore } from '../store';
@@ -11,7 +11,22 @@ export function PaymentsPage() {
   const { currentWorkspace, fetchWorkspaces } = useWorkspaceStore();
   const currentPlan = currentWorkspace?.plan || 'free';
   const [selectedPlan, setSelectedPlan] = useState('free');
-  const [dbPlans, setDbPlans] = useState<any[]>(plans);
+  const [dbPlans, setDbPlans] = useState<Plan[]>([
+    {
+      id: 'free',
+      name: 'Free',
+      price: 0,
+      features: ['1 workspace', '3 projects', '5 members per workspace', 'Kanban boards', 'Code snippets', 'Basic activity feed'],
+      limits: { workspaces: 1, projects: 3, members: 5, ai: false },
+    },
+    {
+      id: 'pro',
+      name: 'Pro',
+      price: 12,
+      features: ['Unlimited workspaces', 'Unlimited projects', 'Unlimited members', 'AI project assistant', 'AI code reviewer', 'Priority support', 'Advanced analytics'],
+      limits: { workspaces: Infinity, projects: Infinity, members: Infinity, ai: true },
+    },
+  ]);
 
   useEffect(() => {
     const fetchDbPlans = async () => {

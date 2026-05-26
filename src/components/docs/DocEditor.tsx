@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 
 interface DocEditorProps {
   doc: DocPage;
-  onSave: (content: string) => void;
+  onSave: (title: string, content: string) => void;
   onBack: () => void;
 }
 
@@ -44,7 +44,7 @@ export function DocEditor({ doc, onSave, onBack }: DocEditorProps) {
   };
 
   const handleSave = () => {
-    onSave(content);
+    onSave(title, content);
     setIsDirty(false);
   };
 

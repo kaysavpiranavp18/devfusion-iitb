@@ -6,6 +6,8 @@ import {
 import { clsx } from 'clsx';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { useAuthStore } from '../store';
+import { supabase } from '../lib/supabase';
 
 type SettingsTab = 'notifications' | 'security' | 'appearance' | 'account';
 
@@ -18,6 +20,7 @@ const THEME_ACCENTS = [
 ];
 
 export function SettingsPage() {
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<SettingsTab>('notifications');
   
   // Notification states
@@ -65,17 +68,23 @@ export function SettingsPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSaveSecurity = (e: React.FormEvent) => {
+  const handleSaveSecurity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword || !newPassword || !confirmPassword) return;
     if (newPassword !== confirmPassword) {
       triggerToast('Error: New passwords do not match');
       return;
     }
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    triggerToast('Password updated successfully!');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      triggerToast('Password updated successfully!');
+    } catch (err: any) {
+      triggerToast(`Error: ${err.message || 'Failed to update password'}`);
+    }
   };
 
   const tabs: { id: SettingsTab; icon: any; label: string }[] = [
@@ -334,7 +343,7 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Registered Email</h3>
-                          <p className="text-xs text-muted mt-1 font-mono">alex@devcollab.io</p>
+                          <p className="text-xs text-muted mt-1 font-mono">{user?.email || 'Not set'}</p>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => triggerToast('Verification mail triggered')} className="text-xs font-bold">Change</Button>
                       </div>
@@ -342,7 +351,7 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Password Logs</h3>
-                          <p className="text-xs text-muted mt-1 font-light">Password was locked 3 months ago</p>
+                          <p className="text-xs text-muted mt-1 font-light">Manage your password through the Security tab</p>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => setTab('security')} className="text-xs font-bold">Update</Button>
                       </div>

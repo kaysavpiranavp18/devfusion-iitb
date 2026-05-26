@@ -132,11 +132,10 @@ function TaskCard({ task, index, onClick }: TaskCardProps) {
 }
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
-  const { tasks, updateTaskStatus, fetchTasks } = useTaskStore();
+  const { tasks, moveTask, fetchTasks } = useTaskStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createColumn, setCreateColumn] = useState<TaskStatus>('todo');
-  const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     if (projectId) {
@@ -190,59 +189,84 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     };
   }, [currentWorkspace]);
 
-  useEffect(() => {
-    setLocalTasks(tasks.filter(t => t.projectId === projectId));
-  }, [tasks, projectId]);
+  const projectTasks = tasks.filter(t => t.projectId === projectId);
 
   const getColumnTasks = (status: TaskStatus) =>
-    localTasks.filter(t => t.status === status).sort((a, b) => a.order - b.order);
+    projectTasks.filter(t => t.status === status).sort((a, b) => a.order - b.order);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
     const { source, destination, draggableId } = result;
     const newStatus = destination.droppableId as TaskStatus;
+    const oldStatus = source.droppableId as TaskStatus;
 
-    if (source.droppableId !== destination.droppableId) {
-      updateTaskStatus(draggableId, newStatus);
+    const sourceTasks = projectTasks.filter(t => t.status === oldStatus).sort((a, b) => a.order - b.order);
+    const destTasks = projectTasks.filter(t => t.status === newStatus).sort((a, b) => a.order - b.order);
 
-      // Dynamic notification for task moved
-      const task = localTasks.find(t => t.id === draggableId);
-      const currentUser = useAuthStore.getState().user;
-      const currentWorkspace = useWorkspaceStore.getState().currentWorkspace;
-      if (task && currentUser) {
-        const statusLabels: Record<string, string> = {
-          todo: 'To Do',
-          in_progress: 'In Progress',
-          in_review: 'In Review',
-          done: 'Done'
-        };
-        useNotificationsStore.getState().addNotification({
-          id: `n-${Date.now()}`,
-          userId: currentUser.id,
-          title: 'Task Moved',
-          message: `${currentUser.user_metadata?.full_name || currentUser.name || 'Someone'} moved '${task.title}' to ${statusLabels[newStatus] || newStatus}`,
-          read: false,
-          createdAt: new Date().toISOString(),
-          type: 'task',
-          link: `/workspace/${currentWorkspace?.id || 'w1'}/project/${task.projectId}/board`
-        });
-      }
+    const draggedTask = projectTasks.find(t => t.id === draggableId);
+    if (!draggedTask) return;
+
+    const affectedTasks: { id: string; status: TaskStatus; order: number }[] = [];
+
+    if (oldStatus === newStatus) {
+      if (source.index === destination.index) return;
+
+      const reordered = [...sourceTasks];
+      const [removed] = reordered.splice(source.index, 1);
+      reordered.splice(destination.index, 0, removed);
+
+      reordered.forEach((task, index) => {
+        if (task.order !== index) {
+          affectedTasks.push({ id: task.id, status: oldStatus, order: index });
+        }
+      });
+    } else {
+      const newSourceTasks = [...sourceTasks];
+      const [removed] = newSourceTasks.splice(source.index, 1);
+
+      const newDestTasks = [...destTasks];
+      newDestTasks.splice(destination.index, 0, { ...removed, status: newStatus });
+
+      newSourceTasks.forEach((task, index) => {
+        if (task.order !== index) {
+          affectedTasks.push({ id: task.id, status: oldStatus, order: index });
+        }
+      });
+
+      newDestTasks.forEach((task, index) => {
+        if (task.id === draggableId || task.order !== index) {
+          affectedTasks.push({ id: task.id, status: newStatus, order: index });
+        }
+      });
     }
 
-    // Reorder locally
-    setLocalTasks(prev => {
-      const updated = [...prev];
-      const task = updated.find(t => t.id === draggableId);
-      if (task) {
-        task.status = newStatus;
-        task.order = destination.index;
+    if (affectedTasks.length > 0) {
+      moveTask(draggableId, newStatus, destination.index, affectedTasks);
+
+      if (oldStatus !== newStatus) {
+        const currentUser = useAuthStore.getState().user;
+        const currentWorkspace = useWorkspaceStore.getState().currentWorkspace;
+        if (currentUser) {
+          const statusLabels: Record<string, string> = {
+            todo: 'To Do',
+            in_progress: 'In Progress',
+            in_review: 'In Review',
+            done: 'Done'
+          };
+          useNotificationsStore.getState().addNotification({
+            id: `n-${Date.now()}`,
+            userId: currentUser.id,
+            title: 'Task Moved',
+            message: `${currentUser.user_metadata?.full_name || currentUser.name || 'Someone'} moved '${draggedTask.title}' to ${statusLabels[newStatus] || newStatus}`,
+            read: false,
+            createdAt: new Date().toISOString(),
+            type: 'task',
+            link: `/workspace/${currentWorkspace?.id || 'w1'}/project/${projectId}/board`
+          });
+        }
       }
-      // Reindex
-      const colTasks = updated.filter(t => t.status === newStatus).sort((a, b) => a.order - b.order);
-      colTasks.forEach((t, i) => { t.order = i; });
-      return updated;
-    });
+    }
   };
 
   return (

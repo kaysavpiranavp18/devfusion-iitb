@@ -22,17 +22,6 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  // Listen for auth changes
-  supabase.auth.onAuthStateChange(async (_event, session) => {
-    const userObj = session?.user || null;
-    if (userObj) {
-      set({ user: userObj, isAuthenticated: true });
-      await get().fetchProfile();
-    } else {
-      set({ user: null, profile: null, isAuthenticated: false, loading: false });
-    }
-  });
-
   return {
     user: null,
     profile: null,
@@ -160,19 +149,25 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     fetchProfile: async () => {
       const userObj = get().user;
+      console.log('[Store] fetchProfile starting... userObj:', userObj ? userObj.email : 'null');
       if (!userObj) {
+        console.log('[Store] fetchProfile userObj is null, setting loading to false');
         set({ loading: false });
         return null;
       }
       try {
+        console.log('[Store] fetchProfile querying profiles table for ID:', userObj.id);
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userObj.id)
           .single();
+        
+        console.log('[Store] fetchProfile profiles query complete. data:', data, 'error:', error);
         if (error) {
           // If profile row doesn't exist, create it (e.g. for Google OAuth logins or debug users)
           if (error.code === 'PGRST116') {
+            console.log('[Store] fetchProfile profile not found (PGRST116), inserting default profile...');
             const defaultProfile = {
               id: userObj.id,
               email: userObj.email || '',
@@ -180,7 +175,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
               avatar: userObj.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userObj.email || userObj.id}`,
               skills: [],
             };
-            await supabase.from('profiles').insert(defaultProfile);
+            const insertResult = await supabase.from('profiles').insert(defaultProfile);
+            console.log('[Store] fetchProfile profile insert result:', insertResult);
             set((state) => ({
               profile: defaultProfile,
               profiles: { ...state.profiles, [userObj.id]: defaultProfile },
@@ -192,11 +188,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
             }));
             return defaultProfile;
           }
-          console.error('Error fetching profile:', error);
+          console.error('[Store] Error fetching profile:', error);
           return null;
         }
         
         // Expose profile fields on the user object too so we don't break existing page designs
+        console.log('[Store] fetchProfile profile found, setting state...');
         set((state) => ({
           profile: data,
           profiles: { ...state.profiles, [userObj.id]: data },
@@ -208,9 +205,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }));
         return data;
       } catch (err) {
-        console.error('fetchProfile failed:', err);
+        console.error('[Store] fetchProfile failed:', err);
         return null;
       } finally {
+        console.log('[Store] fetchProfile finally: setting loading to false');
         set({ loading: false });
       }
     },
@@ -287,7 +285,12 @@ interface WorkspaceState {
   setCurrentWorkspace: (ws: Workspace | null) => void;
   fetchProjects: (workspaceId: string) => Promise<void>;
   addWorkspace: (ws: Workspace) => Promise<void>;
+  updateWorkspace: (workspaceId: string, updates: Partial<Workspace>) => Promise<void>;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
   addProject: (project: Project) => Promise<void>;
+  updateProject: (projectId: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
+  removeWorkspaceMember: (workspaceId: string, userId: string) => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -504,6 +507,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await get().fetchWorkspaces();
     } catch (err) {
       console.error('Error adding workspace:', err);
+      throw err;
     } finally {
       set({ loading: false });
     }
@@ -541,8 +545,126 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await get().fetchWorkspaces();
     } catch (err) {
       console.error('Error adding project:', err);
+      throw err;
     } finally {
       set({ loading: false });
+    }
+  },
+
+  updateProject: async (projectId, updates) => {
+    set({ loading: true });
+    try {
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.color !== undefined) dbUpdates.color = updates.color;
+      dbUpdates.updated_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('projects')
+        .update(dbUpdates)
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      // Re-fetch for the workspace that owns this project
+      const project = get().projects.find(p => p.id === projectId);
+      if (project) {
+        await get().fetchProjects(project.workspaceId);
+      }
+    } catch (err) {
+      console.error('Error updating project:', err);
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  deleteProject: async (projectId) => {
+    set({ loading: true });
+    try {
+      const project = get().projects.find(p => p.id === projectId);
+      if (!project) return;
+
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      await get().fetchProjects(project.workspaceId);
+      await get().fetchWorkspaces();
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  updateWorkspace: async (workspaceId, updates) => {
+    set({ loading: true });
+    try {
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.logo !== undefined) dbUpdates.logo = updates.logo;
+      if (updates.plan !== undefined) dbUpdates.plan = updates.plan;
+      dbUpdates.updated_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('workspaces')
+        .update(dbUpdates)
+        .eq('id', workspaceId);
+
+      if (error) throw error;
+
+      await get().fetchWorkspaces();
+    } catch (err) {
+      console.error('Error updating workspace:', err);
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  deleteWorkspace: async (workspaceId) => {
+    set({ loading: true });
+    try {
+      const { error } = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', workspaceId);
+
+      if (error) throw error;
+
+      set((state) => ({
+        workspaces: state.workspaces.filter(w => w.id !== workspaceId),
+        currentWorkspace: state.currentWorkspace?.id === workspaceId ? null : state.currentWorkspace
+      }));
+    } catch (err) {
+      console.error('Error deleting workspace:', err);
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  removeWorkspaceMember: async (workspaceId, userId) => {
+    try {
+      const { error } = await supabase
+        .from('workspace_members')
+        .delete()
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      await get().fetchWorkspaces();
+    } catch (err) {
+      console.error('Error removing workspace member:', err);
+      throw err;
     }
   }
 }));
@@ -553,9 +675,16 @@ interface TaskState {
   fetchTasks: (projectId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: Task['status']) => Promise<void>;
   updateTaskOrder: (taskId: string, order: number) => Promise<void>;
+  moveTask: (
+    taskId: string, 
+    newStatus: Task['status'], 
+    newOrder: number, 
+    affectedTasks: { id: string; status: Task['status']; order: number }[]
+  ) => Promise<void>;
   addTask: (task: Task) => Promise<void>;
   addComment: (taskId: string, comment: TaskComment) => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -614,6 +743,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   updateTaskStatus: async (taskId, status) => {
+    alert(`updateTaskStatus called for ID: ${taskId}, status: ${status}`);
     set((state) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, status, updatedAt: new Date().toISOString() } : t)
     }));
@@ -640,8 +770,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           );
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating task status:', err);
+      alert('Error updating task status: ' + (err.message || err.code || JSON.stringify(err)));
     }
   },
 
@@ -659,6 +790,58 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       if (error) throw error;
     } catch (err) {
       console.error('Error updating task order:', err);
+    }
+  },
+
+  moveTask: async (taskId, newStatus, _newOrder, affectedTasks) => {
+    set((state) => ({
+      tasks: state.tasks.map(t => {
+        const affected = affectedTasks.find(at => at.id === t.id);
+        if (affected) {
+          return {
+            ...t,
+            status: affected.status,
+            order: affected.order,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return t;
+      })
+    }));
+
+    try {
+      const promises = affectedTasks.map(task =>
+        supabase
+          .from('tasks')
+          .update({
+            status: task.status,
+            task_order: task.order,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', task.id)
+      );
+
+      const results = await Promise.all(promises);
+      for (const res of results) {
+        if (res.error) throw res.error;
+      }
+
+      const task = get().tasks.find(t => t.id === taskId);
+      const user = useAuthStore.getState().user;
+      if (task && user) {
+        const workspaceId = useWorkspaceStore.getState().currentWorkspace?.id;
+        if (workspaceId) {
+          await useActivityStore.getState().addActivity(
+            workspaceId,
+            'task_moved',
+            `${user.user_metadata?.full_name || user.email || 'Someone'} moved "${task.title}" to ${newStatus.replace('_', ' ')}`,
+            user.id,
+            task.projectId
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Error updating tasks on drag and drop:', err);
     }
   },
 
@@ -752,6 +935,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           );
         }
 
+        // Notify task assignee/creator
         const notifyUser = task.assigneeId || task.createdBy;
         if (notifyUser && notifyUser !== currentUser.id) {
           await useNotificationsStore.getState().addNotification({
@@ -764,6 +948,24 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             type: 'comment',
             link: `/workspace/${workspaceId}/project/${task.projectId}/board`
           });
+        }
+
+        // Notify mentioned users
+        if (comment.mentions && comment.mentions.length > 0) {
+          for (const mentionedUserId of comment.mentions) {
+            if (mentionedUserId !== currentUser.id && mentionedUserId !== notifyUser) {
+              await useNotificationsStore.getState().addNotification({
+                id: `n-${Date.now()}-${mentionedUserId}`,
+                userId: mentionedUserId,
+                title: 'You were mentioned',
+                message: `${currentUser.user_metadata?.full_name || currentUser.email || 'Someone'} mentioned you in a comment on '${task.title}'`,
+                read: false,
+                createdAt: new Date().toISOString(),
+                type: 'mention',
+                link: `/workspace/${workspaceId}/project/${task.projectId}/board`
+              });
+            }
+          }
         }
       }
 
@@ -806,11 +1008,75 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       }
 
       const task = get().tasks.find(t => t.id === taskId);
+      const currentUser = useAuthStore.getState().user;
+
+      // Log activity for task update
+      if (task && currentUser) {
+        const workspaceId = useWorkspaceStore.getState().currentWorkspace?.id;
+        if (workspaceId) {
+          await useActivityStore.getState().addActivity(
+            workspaceId,
+            'task_updated',
+            `${currentUser.user_metadata?.full_name || currentUser.email || 'Someone'} updated task "${updates.title || task.title}"`,
+            currentUser.id,
+            task.projectId
+          );
+        }
+
+        // Notify new assignee if assignee changed
+        if (updates.assigneeId && updates.assigneeId !== task.assigneeId && updates.assigneeId !== currentUser.id) {
+          const wsId = useWorkspaceStore.getState().currentWorkspace?.id;
+          await useNotificationsStore.getState().addNotification({
+            id: `n-${Date.now()}`,
+            userId: updates.assigneeId,
+            title: 'Task Assigned',
+            message: `${currentUser.user_metadata?.full_name || currentUser.email || 'Someone'} assigned you to '${updates.title || task.title}'`,
+            read: false,
+            createdAt: new Date().toISOString(),
+            type: 'assignment',
+            link: `/workspace/${wsId}/project/${task.projectId}/board`
+          });
+        }
+      }
+
       if (task) {
         await get().fetchTasks(task.projectId);
       }
     } catch (err) {
       console.error('Error updating task:', err);
+    }
+  },
+
+  deleteTask: async (taskId) => {
+    set({ loading: true });
+    try {
+      const task = get().tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      const currentUser = useAuthStore.getState().user;
+      const workspaceId = useWorkspaceStore.getState().currentWorkspace?.id;
+      if (workspaceId && currentUser) {
+        await useActivityStore.getState().addActivity(
+          workspaceId,
+          'task_updated',
+          `${currentUser.user_metadata?.full_name || currentUser.email || 'Someone'} deleted task "${task.title}"`,
+          currentUser.id,
+          task.projectId
+        );
+      }
+
+      await get().fetchTasks(task.projectId);
+    } catch (err) {
+      console.error('Error deleting task:', err);
+    } finally {
+      set({ loading: false });
     }
   }
 }));
@@ -820,6 +1086,7 @@ interface SnippetState {
   loading: boolean;
   fetchSnippets: (projectId: string) => Promise<void>;
   addSnippet: (snippet: Snippet) => Promise<void>;
+  updateSnippet: (snippetId: string, updates: Partial<Snippet>) => Promise<void>;
   deleteSnippet: (id: string) => Promise<void>;
 }
 
@@ -905,6 +1172,46 @@ export const useSnippetStore = create<SnippetState>((set, get) => ({
       await get().fetchSnippets(snippet.projectId);
     } catch (err) {
       console.error('Error adding snippet:', err);
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  updateSnippet: async (snippetId, updates) => {
+    set({ loading: true });
+    try {
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.code !== undefined) dbUpdates.code = updates.code;
+      if (updates.language !== undefined) dbUpdates.language = updates.language;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.filename !== undefined) dbUpdates.filename = updates.filename || null;
+      dbUpdates.updated_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('snippets')
+        .update(dbUpdates)
+        .eq('id', snippetId);
+
+      if (error) throw error;
+
+      // Sync tags
+      if (updates.tags !== undefined) {
+        await supabase.from('snippet_tags').delete().eq('snippet_id', snippetId);
+        if (updates.tags.length > 0) {
+          const { error: tagErr } = await supabase
+            .from('snippet_tags')
+            .insert(updates.tags.map(t => ({ snippet_id: snippetId, tag: t })));
+          if (tagErr) throw tagErr;
+        }
+      }
+
+      const snippet = get().snippets.find(s => s.id === snippetId);
+      if (snippet) {
+        await get().fetchSnippets(snippet.projectId);
+      }
+    } catch (err) {
+      console.error('Error updating snippet:', err);
     } finally {
       set({ loading: false });
     }

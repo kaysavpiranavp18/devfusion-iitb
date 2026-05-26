@@ -105,12 +105,12 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200" 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity duration-200" 
         onClick={onClose} 
       />
 
       {/* Drawer Panel */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[460px] bg-surface-card border-l border-hairline shadow-2xl flex flex-col h-full select-none animate-in">
+      <div className="fixed right-0 top-0 bottom-0 z-[100] w-full sm:w-[460px] bg-surface-card border-l border-hairline shadow-2xl flex flex-col h-full select-none animate-in">
         
         {/* Top 4px Accent Bar */}
         <div className="h-[4px] w-full bg-primary shrink-0" />
