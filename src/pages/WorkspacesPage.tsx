@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Users, ArrowRight, Crown, ChevronRight } from 'lucide-react';
+import { Plus, FolderKanban, Users, ArrowRight, Crown, ChevronRight, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useWorkspaceStore, useAuthStore } from '../store';
 import { Avatar } from '../components/ui/Avatar';
@@ -42,10 +42,15 @@ export function WorkspacesPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    setIsCreating(true);
+    setError(null);
 
     const newWorkspace = {
       id: `w-${Date.now()}`,
@@ -59,11 +64,20 @@ export function WorkspacesPage() {
       plan
     };
 
-    addWorkspace(newWorkspace);
-    setIsCreateOpen(false);
-    setName('');
-    setDescription('');
-    setPlan('free');
+    try {
+      await addWorkspace(newWorkspace);
+      setToastMessage('Workspace created successfully!');
+      setIsCreateOpen(false);
+      setName('');
+      setDescription('');
+      setPlan('free');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Failed to create workspace. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -198,6 +212,11 @@ export function WorkspacesPage() {
         size="md"
       >
         <form onSubmit={handleCreate} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl text-left select-text">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
               Workspace Name
@@ -273,13 +292,32 @@ export function WorkspacesPage() {
             </button>
             <button
               type="submit"
-              className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-primary/10"
+              disabled={isCreating}
+              className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-primary/10 flex items-center gap-1.5"
             >
-              Create Workspace
+              {isCreating ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : null}
+              <span>Create Workspace</span>
             </button>
           </div>
         </form>
       </Modal>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[#13131a] border border-[#1e1e2e]/80 text-[#c9d1d9] text-xs px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center gap-2 border-l-4 border-l-primary select-text rounded-lg">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary shrink-0" />
+          <span className="font-semibold text-white">{toastMessage}</span>
+          <button 
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-[#64748b] hover:text-white transition-colors bg-transparent border-none cursor-pointer p-0 flex items-center justify-center shrink-0"
+            title="Dismiss notification"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

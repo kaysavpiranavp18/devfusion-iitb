@@ -62,6 +62,19 @@ export function OnboardingPage() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
+
+    // Client-side email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address (e.g., name@example.com).');
+      return;
+    }
+
+    if (isSignUp && password.length < 6) {
+      setError('Password should be at least 6 characters.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -73,10 +86,14 @@ export function OnboardingPage() {
       navigate('/dashboard');
     } catch (err: any) {
       console.error(err);
-      if (err.message?.toLowerCase().includes('invalid login credentials') || err.message?.toLowerCase().includes('invalid credentials')) {
-        setError('Incorrect email or password. The user does not exist or credentials are invalid.');
+      const errMsg = err?.message || (typeof err === 'string' ? err : '') || 'Authentication failed';
+      const isInvalidCredentials = errMsg.toLowerCase().includes('invalid login credentials') || 
+                                   errMsg.toLowerCase().includes('invalid credentials') || 
+                                   errMsg.toLowerCase().includes('invalid_grant');
+      if (isInvalidCredentials) {
+        setError('Account does not exist or invalid credentials.');
       } else {
-        setError(err.message || 'Authentication failed. Please check your credentials.');
+        setError(errMsg || 'Authentication failed. Please check your credentials.');
       }
     } finally {
       setLoading(false);
@@ -336,14 +353,9 @@ export function OnboardingPage() {
               </p>
             </div>
 
-            {error && (
-              <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl text-left select-text">
-                {error}
-              </div>
-            )}
 
             {/* Email Form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <form onSubmit={handleEmailSubmit} className="space-y-4" noValidate>
               {isSignUp && (
                 <div className="space-y-1 animate-in fade-in slide-in-from-left-2 duration-300">
                   <label className="block text-[10px] font-bold text-muted uppercase tracking-wider">Full Name</label>

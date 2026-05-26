@@ -252,7 +252,8 @@ export function DashboardPage() {
         useWorkspaceStore.setState({ projects: formattedProjects });
       }
 
-      if (projIds.length > 0) {
+      const freshProjIds = dbProjects ? dbProjects.map((p: any) => p.id) : projIds;
+      if (freshProjIds.length > 0) {
         const { data: dbTasks } = await supabase
           .from('tasks')
           .select(`
@@ -264,7 +265,9 @@ export function DashboardPage() {
               label
             )
           `)
-          .in('project_id', projIds);
+          .in('project_id', freshProjIds)
+          .order('updated_at', { ascending: false })
+          .limit(200);
 
         if (dbTasks) {
           const formattedTasks: Task[] = dbTasks.map((t: any) => ({

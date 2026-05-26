@@ -12,6 +12,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { WorkspaceLayout } from '../components/layout/WorkspaceLayout';
 import { Modal } from '../components/ui/Modal';
 import { formatDistanceToNow } from 'date-fns';
+import { supabase } from '../lib/supabase';
 import type { Project } from '../types';
 
 export function WorkspaceOverviewPage() {
@@ -19,7 +20,7 @@ export function WorkspaceOverviewPage() {
   const navigate = useNavigate();
   const {
     currentWorkspace, setCurrentWorkspace, projects, fetchProjects,
-    workspaces, addProject,
+    workspaces, addProject, fetchWorkspaces,
   } = useWorkspaceStore();
   const { tasks } = useTaskStore();
   const { user } = useAuthStore();
@@ -29,6 +30,8 @@ export function WorkspaceOverviewPage() {
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [projectColor, setProjectColor] = useState('#6366f1');
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Invite states
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -43,18 +46,70 @@ export function WorkspaceOverviewPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleSendInvite = () => {
-    if (!inviteEmail.trim()) return;
-    setIsInviteOpen(false);
-    setToastMessage(`Invite sent to ${inviteEmail.trim()}`);
-    setInviteEmail('');
-    setInviteRole('member');
-    setTimeout(() => setToastMessage(null), 3000);
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim() || !currentWorkspace) return;
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', inviteEmail.trim())
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!profile) {
+        setToastMessage(`User with email ${inviteEmail.trim()} not found.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
+
+      const alreadyMember = currentWorkspace.members.some(m => m.user.id === profile.id);
+      if (alreadyMember) {
+        setToastMessage(`${profile.name || profile.email} is already a member.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
+
+      const { error: memErr } = await supabase
+        .from('workspace_members')
+        .insert({
+          workspace_id: currentWorkspace.id,
+          user_id: profile.id,
+          role: inviteRole
+        });
+
+      if (memErr) throw memErr;
+
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser) {
+        await useActivityStore.getState().addActivity(
+          currentWorkspace.id,
+          'member_joined',
+          `${profile.name || profile.email} joined the workspace`,
+          profile.id
+        );
+      }
+
+      await fetchWorkspaces();
+
+      setIsInviteOpen(false);
+      setToastMessage(`Successfully added ${profile.name || profile.email} to the workspace.`);
+      setInviteEmail('');
+      setInviteRole('member');
+    } catch (err) {
+      console.error(err);
+      setToastMessage('Failed to add workspace member.');
+    } finally {
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName.trim() || !workspaceId) return;
+    setIsCreating(true);
+    setError(null);
 
     const newProject: Project = {
       id: `p${Date.now()}`,
@@ -67,11 +122,20 @@ export function WorkspaceOverviewPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    addProject(newProject);
-    setProjectName('');
-    setProjectDescription('');
-    setProjectColor('#6366f1');
-    setIsCreateOpen(false);
+    try {
+      await addProject(newProject);
+      setProjectName('');
+      setProjectDescription('');
+      setProjectColor('#6366f1');
+      setIsCreateOpen(false);
+      setToastMessage('Project created successfully!');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Failed to create project. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const projectColors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
@@ -356,6 +420,11 @@ export function WorkspaceOverviewPage() {
         size="md"
       >
         <form onSubmit={handleCreateProject} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl text-left select-text">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1.5">
               Project Name
@@ -415,9 +484,13 @@ export function WorkspaceOverviewPage() {
             </button>
             <button
               type="submit"
-              className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-primary/10"
+              disabled={isCreating}
+              className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-md shadow-primary/10 flex items-center gap-1.5"
             >
-              Create Project
+              {isCreating ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : null}
+              <span>Create Project</span>
             </button>
           </div>
         </form>
