@@ -1,8 +1,8 @@
-import React, { type ReactNode, useEffect, useState } from 'react';
+import React, { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
-  LayoutDashboard, FileText, Code, Activity, Settings, Plus,
+  LayoutDashboard, FileText, Code, Activity, Settings, Plus, Lock,
   FolderOpen, CheckSquare, Home, UserPlus,
 } from 'lucide-react';
 import { useWorkspaceStore, useUIStore, useAuthStore, useActivityStore } from '../../store';
@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { Avatar } from '../ui/Avatar';
 import { Modal } from '../ui/Modal';
 import { AIAssistant } from '../ai/AIAssistant';
+import { LiveCursorPresence } from '../presence/LiveCursorPresence';
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -19,7 +20,9 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const { workspaceId, projectId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects, workspaces, fetchWorkspaces } = useWorkspaceStore();
+  const shellRef = useRef<HTMLDivElement>(null);
+  const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects, workspaces, fetchWorkspaces, loading } = useWorkspaceStore();
+  const currentUserId = useAuthStore(state => state.user?.id);
   const {
     sidebarOpen, toggleSidebar,
     aiSidebarOpen, toggleAiSidebar
@@ -187,6 +190,66 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   const activeProjectId = projectId || (projects.length > 0 ? projects[0].id : null);
+  const currentProject = projectId ? projects.find(project => project.id === projectId) || null : null;
+  const hasProjectAccess = !currentProject || currentProject.members.some(member => member.user.id === currentUserId);
+  const screenKey = projectId
+    ? `project:${projectId}:${location.pathname.split('/').pop() || 'board'}`
+    : 'overview';
+
+  if (projectId && loading && !currentProject) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 text-body select-none bg-canvas">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center space-y-2">
+            <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-body">Loading project access...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (projectId && !currentProject) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-0 bg-canvas text-body">
+        <div className="max-w-md w-full mx-4 p-6 border border-hairline bg-surface-card text-center space-y-3">
+          <div className="w-12 h-12 mx-auto flex items-center justify-center bg-white/5 border border-hairline">
+            <Lock size={18} className="text-muted" />
+          </div>
+          <h1 className="text-lg font-semibold text-ink">Project not found</h1>
+          <p className="text-sm text-muted">The requested project does not exist in this workspace.</p>
+          <button
+            onClick={() => navigate(`/workspace/${workspaceId}/overview`)}
+            className="px-4 py-2 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Back to workspace
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (projectId && currentProject && !hasProjectAccess) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-0 bg-canvas text-body">
+        <div className="max-w-md w-full mx-4 p-6 border border-hairline bg-surface-card text-center space-y-3">
+          <div className="w-12 h-12 mx-auto flex items-center justify-center bg-white/5 border border-hairline">
+            <Lock size={18} className="text-semantic-warning" />
+          </div>
+          <h1 className="text-lg font-semibold text-ink">Project locked</h1>
+          <p className="text-sm text-muted">
+            You are in this workspace, but you were not granted access to this project.
+          </p>
+          <button
+            onClick={() => navigate(`/workspace/${workspaceId}/overview`)}
+            className="px-4 py-2 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Back to workspace
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const activityBarItems = [
     { id: 'explorer', icon: FolderOpen, label: 'Workspace Explorer (Toggle Sidebar)' },
@@ -198,7 +261,14 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 text-body select-none bg-canvas">
+    <div ref={shellRef} className="relative flex-1 flex flex-col min-h-0 text-body select-none bg-canvas">
+      {workspaceId && screenKey && (
+        <LiveCursorPresence
+          workspaceId={workspaceId}
+          screenKey={screenKey}
+          containerRef={shellRef}
+        />
+      )}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* 1. Activity Bar (Far Left, narrow 56px rail) */}
         <div className="w-14 bg-canvas border-r border-hairline flex flex-col justify-between items-center py-3 shrink-0 z-20">
@@ -318,6 +388,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 const currentView = location.pathname.split('/').pop() || 'board';
                 const dest = `/workspace/${workspaceId}/project/${project.id}/${['board', 'tasks', 'docs', 'snippets', 'activity'].includes(currentView) ? currentView : 'board'}`;
                 const isActiveProject = projectId === project.id;
+                const hasAccess = project.members.some(member => member.user.id === currentUserId);
                 
                 return (
                   <NavLink
@@ -325,14 +396,21 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                     to={dest}
                     className={clsx(
                       'flex items-center gap-2 px-3 py-1.5 text-xs transition-colors rounded-md',
+                      !hasAccess && 'opacity-60 cursor-not-allowed',
                       isActiveProject ? 'bg-white/10 text-ink font-medium' : 'text-muted hover:bg-surface-card',
                     )}
+                    onClick={e => {
+                      if (!hasAccess) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
                     <div
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: project.color }}
                     />
                     <span className="truncate">{project.name}</span>
+                    {!hasAccess && <Lock size={11} className="ml-auto shrink-0 text-semantic-warning" />}
                   </NavLink>
                 );
               })}

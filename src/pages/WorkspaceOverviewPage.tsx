@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FolderKanban, Users, Calendar, ArrowRight, Plus, Activity as ActivityIcon,
-  Sparkles, LayoutDashboard,
+  Sparkles, LayoutDashboard, Lock, UserPlus, UserMinus, Shield, Search,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useWorkspaceStore, useTaskStore, useAuthStore, useActivityStore } from '../store';
@@ -14,13 +14,14 @@ import { Modal } from '../components/ui/Modal';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types';
+import { backendJson } from '../lib/api';
 
 export function WorkspaceOverviewPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const {
     currentWorkspace, setCurrentWorkspace, projects, fetchProjects,
-    workspaces, addProject, fetchWorkspaces,
+    workspaces, addProject, fetchWorkspaces, deleteProject,
   } = useWorkspaceStore();
   const { tasks } = useTaskStore();
   const { user } = useAuthStore();
@@ -39,6 +40,12 @@ export function WorkspaceOverviewPage() {
   const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'viewer'>('member');
   const [copiedLink, setCopiedLink] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [manageProjectId, setManageProjectId] = useState<string | null>(null);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [projectAccessBusy, setProjectAccessBusy] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCopyLink = async () => {
     await navigator.clipboard.writeText('https://devcollab.app/invite/abc123xyz');
@@ -139,6 +146,88 @@ export function WorkspaceOverviewPage() {
   };
 
   const projectColors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+
+  const activeManagedProject = projects.find(project => project.id === manageProjectId) || null;
+
+  const canManageProject = (project: Project) => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return false;
+    return project.members.some(member => member.user.id === currentUserId && (member.role === 'owner' || member.role === 'admin'));
+  };
+
+  const isOwner = (project: Project) => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return false;
+    return project.members.some(member => member.user.id === currentUserId && member.role === 'owner');
+  };
+
+  const canAccessProject = (project: Project) => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return false;
+    return project.members.some(member => member.user.id === currentUserId);
+  };
+
+  const updateProjectAccess = async (memberUserId: string, action: 'add' | 'remove') => {
+    if (!workspaceId || !activeManagedProject) return;
+
+    setProjectAccessBusy(memberUserId);
+    try {
+      try {
+        if (action === 'add') {
+          await backendJson(`/projects/${activeManagedProject.id}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ userId: memberUserId, role: 'member' }),
+          });
+        } else {
+          await backendJson(`/projects/${activeManagedProject.id}/members/${memberUserId}`, {
+            method: 'DELETE',
+          });
+        }
+      } catch {
+
+        if (action === 'add') {
+          const { error } = await supabase
+            .from('project_members')
+            .insert({
+              project_id: activeManagedProject.id,
+              user_id: memberUserId,
+              role: 'member',
+            });
+
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('project_members')
+            .delete()
+            .eq('project_id', activeManagedProject.id)
+            .eq('user_id', memberUserId);
+
+          if (error) throw error;
+        }
+      }
+
+      setToastMessage(action === 'add' ? 'Project access granted.' : 'Project access removed.');
+      await fetchProjects(workspaceId);
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage(err?.message || 'Failed to update project access.');
+    } finally {
+      setProjectAccessBusy(null);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
+  const workspaceMembers = currentWorkspace?.members || [];
+
+  const accessibleWorkspaceMembers = workspaceMembers.filter(member => {
+    return !activeManagedProject?.members.some(projectMember => projectMember.user.id === member.user.id);
+  });
+
+  const filteredAssignableMembers = accessibleWorkspaceMembers.filter(member => {
+    const term = projectSearch.trim().toLowerCase();
+    if (!term) return true;
+    return member.user.name.toLowerCase().includes(term) || member.user.email.toLowerCase().includes(term);
+  });
 
   useEffect(() => {
     if (workspaceId) {
@@ -273,9 +362,19 @@ export function WorkspaceOverviewPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {projects.map(project => (
-                  <Card key={project.id} hover onClick={() => navigate(`/workspace/${workspaceId}/project/${project.id}/board`)}>
+                  <Card
+                    key={project.id}
+                    hover={canAccessProject(project)}
+                    onClick={() => {
+                      if (canAccessProject(project)) {
+                        navigate(`/workspace/${workspaceId}/project/${project.id}/board`);
+                      }
+                    }}
+                    className={clsx(!canAccessProject(project) && 'opacity-80')}
+                  >
                     <CardContent className="p-5">
-                      <div className="flex items-center gap-3 mb-3">                          <div className="w-10 h-10 flex items-center justify-center text-white font-bold text-sm"
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 flex items-center justify-center text-white font-bold text-sm"
                           style={{ backgroundColor: project.color }}
                         >
                           {project.name.charAt(0).toUpperCase()}
@@ -284,23 +383,67 @@ export function WorkspaceOverviewPage() {
                           <h3 className="text-sm font-bold text-ink truncate">{project.name}</h3>
                           <p className="text-xs text-muted truncate">{project.description}</p>
                         </div>
-                        <ArrowRight size={16} className="text-body shrink-0" />
+                        {canAccessProject(project) ? (
+                          <ArrowRight size={16} className="text-body shrink-0" />
+                        ) : (
+                          <Lock size={16} className="text-semantic-warning shrink-0" />
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-xs text-body">
                         <span className="flex items-center gap-1">
                           <Users size={12} />
                           {project.members.length} {project.members.length === 1 ? 'member' : 'members'}
                         </span>
-                        <div className="flex -space-x-1.5">
-                          {project.members.slice(0, 3).map(m => (
-                            <Avatar
-                              key={m.user.id}
-                              src={m.user.avatar}
-                              name={m.user.name}
-                              size="xs"
-                              className="border border-hairline"
-                            />
-                          ))}
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-1.5">
+                            {project.members.slice(0, 3).map(m => (
+                              <Avatar
+                                key={m.user.id}
+                                src={m.user.avatar}
+                                name={m.user.name}
+                                size="xs"
+                                className="border border-hairline"
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (canManageProject(project)) {
+                                setManageProjectId(project.id);
+                                setProjectSearch('');
+                              }
+                            }}
+                            className={clsx(
+                              'inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded border transition-colors',
+                              canManageProject(project)
+                                ? 'border-hairline text-muted hover:text-ink hover:bg-white/5'
+                                : 'border-hairline/50 text-muted/50 cursor-not-allowed',
+                            )}
+                            disabled={!canManageProject(project)}
+                          >
+                            <Shield size={11} />
+                            Access
+                          </button>
+                          {isOwner(project) && (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setDeleteProjectId(project.id);
+                                setIsDeleteOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded border border-rose-500 text-rose-400 hover:bg-rose-500/5"
+                            >
+                              Delete
+                            </button>
+                          )}
+                          {!canAccessProject(project) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded bg-semantic-warning/10 text-semantic-warning border border-semantic-warning/20">
+                              <Lock size={11} /> Locked
+                            </span>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -558,6 +701,162 @@ export function WorkspaceOverviewPage() {
                 Send Invite
               </button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Project Access Modal */}
+      <Modal
+        open={Boolean(manageProjectId)}
+        onClose={() => setManageProjectId(null)}
+        title={activeManagedProject ? `${activeManagedProject.name} access` : 'Project access'}
+        size="lg"
+      >
+        {activeManagedProject && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-hairline bg-canvas p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted mb-2">Current access</p>
+              <div className="flex flex-wrap gap-2">
+                {activeManagedProject.members.map(member => (
+                  <span
+                    key={member.user.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-hairline bg-white/5 text-xs text-ink"
+                  >
+                    <Avatar src={member.user.avatar} name={member.user.name} size="xs" />
+                    <span>{member.user.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted">{member.role}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-ink">Workspace members</h3>
+                  <p className="text-xs text-muted">Grant access to this project without adding them to other projects.</p>
+                </div>
+                <div className="relative w-full max-w-xs">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    value={projectSearch}
+                    onChange={e => setProjectSearch(e.target.value)}
+                    placeholder="Search members"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-hairline bg-canvas text-ink placeholder:text-muted rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                {filteredAssignableMembers.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-hairline bg-canvas text-sm text-muted">
+                    No workspace members available to add.
+                  </div>
+                ) : filteredAssignableMembers.map(member => (
+                  <div key={member.user.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-hairline bg-canvas">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar src={member.user.avatar} name={member.user.name} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink truncate">{member.user.name}</p>
+                        <p className="text-xs text-muted truncate">{member.user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={projectAccessBusy === member.user.id}
+                      onClick={() => updateProjectAccess(member.user.id, 'add')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <UserPlus size={13} />
+                      Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-ink mb-3">Project members</h3>
+              <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
+                {activeManagedProject.members.map(member => (
+                  <div key={member.user.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-hairline bg-canvas">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar src={member.user.avatar} name={member.user.name} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink truncate">{member.user.name}</p>
+                        <p className="text-xs text-muted truncate">{member.user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={clsx(
+                        'text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                        member.role === 'owner' && 'bg-semantic-success/20 text-semantic-success',
+                        member.role === 'admin' && 'bg-white/20 text-ink',
+                        member.role === 'member' && 'bg-surface-elevated text-body',
+                        member.role === 'viewer' && 'bg-surface-card text-muted',
+                      )}>
+                        {member.role}
+                      </span>
+                      {member.role !== 'owner' && (
+                        <button
+                          type="button"
+                          disabled={projectAccessBusy === member.user.id}
+                          onClick={() => updateProjectAccess(member.user.id, 'remove')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-ink hover:bg-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          <UserMinus size={13} />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Project Confirm Modal */}
+      <Modal
+        open={isDeleteOpen}
+        onClose={() => { setIsDeleteOpen(false); setDeleteProjectId(null); }}
+        title="Delete project"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">Are you sure you want to permanently delete this project? This action cannot be undone.</p>
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => { setIsDeleteOpen(false); setDeleteProjectId(null); }}
+              className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 text-muted hover:text-ink text-xs font-semibold rounded-lg transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!deleteProjectId) return;
+                setIsDeleting(true);
+                try {
+                  await deleteProject(deleteProjectId);
+                  setToastMessage('Project deleted.');
+                  setIsDeleteOpen(false);
+                  setDeleteProjectId(null);
+                } catch (err) {
+                  console.error(err);
+                  setToastMessage('Failed to delete project.');
+                } finally {
+                  setIsDeleting(false);
+                  setTimeout(() => setToastMessage(null), 3000);
+                }
+              }}
+              disabled={isDeleting}
+              className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-60"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete project'}
+            </button>
           </div>
         </div>
       </Modal>

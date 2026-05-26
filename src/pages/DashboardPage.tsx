@@ -333,6 +333,14 @@ export function DashboardPage() {
   const today = new Date();
   const userTasks = allTasks.filter(t => t.assigneeId === user?.id);
   const todayTasks = userTasks.filter(t => t.dueDate && isSameDay(new Date(t.dueDate), today));
+  const primaryWorkspace = workspaces[0] || null;
+  const firstProject = projects[0] || null;
+  const firstProjectWorkspaceId = firstProject
+    ? workspaces.find(ws => ws.projects.includes(firstProject.id))?.id || primaryWorkspace?.id || null
+    : null;
+  const projectCards = workspaces.flatMap(ws =>
+    ws.projects.map(pid => ({ workspace: ws, projectId: pid }))
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-canvas">
@@ -407,36 +415,29 @@ export function DashboardPage() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {workspaces.flatMap(ws =>
-                    ws.projects.map(pid => {
+                {projectCards.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {projectCards.map(({ workspace: ws, projectId: pid }) => {
                       const project = projects.find((p: { id: string }) => p.id === pid);
                       if (!project) return null;
-                      
+
                       const projTasks = allTasks.filter(t => t.projectId === pid);
                       const projDone = projTasks.filter(t => t.status === 'done').length;
                       const pct = projTasks.length > 0 ? Math.round(projDone / projTasks.length * 100) : 0;
-                      
-                      // Get dynamic user avatars assigned to tasks in this project
-                      const projAssignees = Array.from(
-                          new Set(projTasks.map(t => t.assigneeId).filter(Boolean))
-                      ).map(id => profiles[id!]).filter(Boolean);
+                      const projAssignees = Array.from(new Set(projTasks.map(t => t.assigneeId).filter(Boolean)))
+                        .map(id => profiles[id!])
+                        .filter(Boolean);
 
                       return (
-                        <div
+                        <button
                           key={pid}
                           onClick={() => navigate(`/workspace/${ws.id}/project/${pid}/board`)}
                           className={clsx(
-                            "group bg-surface-card border border-hairline/80",
-                            "p-5 rounded-2xl transition-colors duration-200 hover:border-white/10",
-                            "relative overflow-hidden text-left cursor-pointer flex flex-col justify-between min-h-[140px]"
+                            'group text-left bg-surface-card border border-hairline/80 p-5 rounded-2xl transition-colors duration-200 hover:border-white/10',
+                            'relative overflow-hidden cursor-pointer flex flex-col justify-between min-h-[150px]'
                           )}
                         >
-                          {/* Left indicator stripe */}
-                          <div 
-                            className="absolute left-0 top-0 bottom-0 w-[3px]" 
-                            style={{ backgroundColor: project.color }} 
-                          />
+                          <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: project.color }} />
 
                           <div className="flex items-start justify-between gap-3 relative z-10 pl-1.5">
                             <div className="min-w-0">
@@ -451,8 +452,7 @@ export function DashboardPage() {
                           </div>
 
                           <div className="mt-5 relative z-10 pl-1.5 flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
-                              {/* Dynamic Assignee Avatars */}
+                            <div className="flex items-center justify-between gap-3">
                               <div className="flex -space-x-1.5 overflow-hidden">
                                 {projAssignees.slice(0, 4).map((member, i) => (
                                   <Avatar
@@ -477,35 +477,77 @@ export function DashboardPage() {
                               </div>
                             </div>
 
-                            {/* Standard Progress Bar */}
                             <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden relative">
-                              <div 
-                                className="h-full rounded-full transition-all duration-500" 
-                                style={{ 
-                                  width: `${pct}%`, 
-                                  backgroundColor: project.color
-                                }} 
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, backgroundColor: project.color }}
                               />
                             </div>
                           </div>
-                        </div>
+                        </button>
                       );
-                    })
-                  )}
-                  <button
-                    onClick={() => navigate('/workspaces')}
-                    className={clsx(
-                      "group flex flex-col items-center justify-center gap-3 bg-white/[0.01] hover:bg-white/[0.02]",
-                      "border border-dashed border-hairline hover:border-primary/20 p-5 rounded-2xl min-h-[140px]",
-                      "text-xs font-semibold text-muted hover:text-ink transition-all duration-200 cursor-pointer"
-                    )}
-                  >
-                    <div className="w-9 h-9 rounded-full bg-white/4 border border-white/5 flex items-center justify-center group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-200">
-                      <Plus size={16} className="text-muted group-hover:text-primary transition-colors" />
+                    })}
+
+                    <button
+                      onClick={() => navigate('/workspaces')}
+                      className={clsx(
+                        'group flex flex-col items-center justify-center gap-3 bg-white/[0.01] hover:bg-white/[0.02]',
+                        'border border-dashed border-hairline hover:border-primary/20 p-5 rounded-2xl min-h-[150px]',
+                        'text-xs font-semibold text-muted hover:text-ink transition-all duration-200 cursor-pointer'
+                      )}
+                    >
+                      <div className="w-9 h-9 rounded-full bg-white/4 border border-white/5 flex items-center justify-center group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-200">
+                        <Plus size={16} className="text-muted group-hover:text-primary transition-colors" />
+                      </div>
+                      <span className="tracking-widest uppercase text-[9px] font-bold text-muted group-hover:text-ink transition-colors">New project</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.9fr] gap-4">
+                    <div className="rounded-2xl border border-dashed border-hairline bg-white/[0.01] p-7 min-h-[220px] flex flex-col justify-between">
+                      <div>
+                        <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+                          <FolderKanban size={18} className="text-primary" />
+                        </div>
+                        <h4 className="text-lg font-semibold text-ink">No projects yet</h4>
+                        <p className="mt-2 text-sm text-muted max-w-md leading-relaxed">
+                          Create your first project to track tasks, docs, snippets, and team progress from one place.
+                        </p>
+                      </div>
+                      <div className="mt-6 flex flex-wrap gap-3">
+                        <button
+                          onClick={() => navigate('/workspaces')}
+                          className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors"
+                        >
+                          Create project
+                        </button>
+                        <button
+                          onClick={() => navigate('/workspaces')}
+                          className="px-4 py-2 rounded-lg border border-hairline text-xs font-semibold text-muted hover:text-ink hover:bg-white/[0.03] transition-colors"
+                        >
+                          Open workspaces
+                        </button>
+                      </div>
                     </div>
-                    <span className="tracking-widest uppercase text-[9px] font-bold text-muted group-hover:text-ink transition-colors">New project</span>
-                  </button>
-                </div>
+
+                    <div className="rounded-2xl border border-hairline bg-surface-card p-5 flex flex-col items-center justify-center text-center min-h-[220px]">
+                      <div className="w-14 h-14 rounded-full bg-white/[0.03] border border-hairline flex items-center justify-center mb-4">
+                        <Plus size={18} className="text-muted" />
+                      </div>
+                      <p className="text-sm font-semibold text-ink">Quick start</p>
+                      <p className="mt-1 text-xs text-muted max-w-xs leading-relaxed">
+                        New projects appear here with progress, assignees, and completion status once you add them.
+                      </p>
+                      <button
+                        onClick={() => navigate('/workspaces')}
+                        className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-hairline text-xs font-semibold text-ink hover:bg-white/8 transition-colors"
+                      >
+                        <Plus size={13} />
+                        Add project
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -527,7 +569,12 @@ export function DashboardPage() {
                           <div
                             key={task.id}
                             className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.03] border border-hairline hover:border-white/10 transition-all duration-200 cursor-pointer"
-                            onClick={() => navigate(`/workspace/${workspaces[0]?.id}/project/${task.projectId}/board`)}
+                            onClick={() => {
+                              const taskWorkspaceId = workspaces.find(ws => ws.projects.includes(task.projectId))?.id || primaryWorkspace?.id;
+                              if (taskWorkspaceId) {
+                                navigate(`/workspace/${taskWorkspaceId}/project/${task.projectId}/board`);
+                              }
+                            }}
                           >
                             {task.status === 'done' ? (
                               <CheckCircle2 size={15} className="text-semantic-success mt-0.5 shrink-0" />
@@ -562,7 +609,13 @@ export function DashboardPage() {
 
               {/* Quick AI Assistant Card (Standard UI) */}
               <div
-                onClick={() => workspaces.length > 0 && navigate(`/workspace/${workspaces[0].id}/project/${workspaces[0].projects[0]}/board`)}
+                onClick={() => {
+                  if (firstProjectWorkspaceId && firstProject) {
+                    navigate(`/workspace/${firstProjectWorkspaceId}/project/${firstProject.id}/board`);
+                  } else {
+                    navigate('/workspaces');
+                  }
+                }}
                 className={clsx(
                   "group p-5 rounded-2xl cursor-pointer transition-colors duration-200 border text-white relative overflow-hidden",
                   "bg-gradient-to-br from-indigo-950 to-indigo-900 border-indigo-500/20 hover:border-indigo-400/30"
@@ -595,16 +648,23 @@ export function DashboardPage() {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-ink">Recent Activity</h3>
               </div>
               <button
-                onClick={() => workspaces.length > 0 && navigate(`/workspace/${workspaces[0].id}/activity`)}
+                onClick={() => {
+                  if (primaryWorkspace) {
+                    navigate(`/workspace/${primaryWorkspace.id}/overview`);
+                  } else {
+                    navigate('/workspaces');
+                  }
+                }}
                 className="text-xs text-primary hover:text-primary/80 font-bold transition-colors"
               >
                 View all
               </button>
             </div>
 
-            <div className="relative pl-3 space-y-4 before:absolute before:left-[17px] before:top-3 before:bottom-3 before:w-[2px] before:bg-hairline">
-              {workspaces.length > 0 && activities
-                .filter(a => a.workspaceId === workspaces[0].id)
+            {primaryWorkspace ? (
+              <div className="relative pl-3 space-y-4 before:absolute before:left-[17px] before:top-3 before:bottom-3 before:w-[2px] before:bg-hairline">
+                {activities
+                .filter(a => a.workspaceId === primaryWorkspace.id)
                 .slice(0, 6)
                 .map(act => {
                   const actor = profiles[act.userId];
@@ -667,7 +727,14 @@ export function DashboardPage() {
                     </div>
                   );
                 })}
-            </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-hairline bg-white/[0.01] p-6 text-center">
+                <MessageSquare size={18} className="mx-auto text-muted mb-2" />
+                <p className="text-sm font-semibold text-ink">No activity yet</p>
+                <p className="mt-1 text-xs text-muted">Create a workspace and start collaborating to see updates here.</p>
+              </div>
+            )}
           </div>
 
         </div>
