@@ -1,16 +1,17 @@
 import React, { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, NavLink, useLocation } from 'react-router-dom';
-import { clsx } from 'clsx';
+import clsx from 'clsx';
 import {
   LayoutDashboard, FileText, Code, Activity, Settings, Plus, Lock,
   FolderOpen, CheckSquare, Home, UserPlus,
 } from 'lucide-react';
-import { useWorkspaceStore, useUIStore, useAuthStore, useActivityStore } from '../../store';
-import { supabase } from '../../lib/supabase';
+import { useWorkspaceStore, useUIStore, useAuthStore } from '../../store';
 import { Avatar } from '../ui/Avatar';
 import { Modal } from '../ui/Modal';
 import { AIAssistant } from '../ai/AIAssistant';
 import { LiveCursorPresence } from '../presence/LiveCursorPresence';
+import { backendJson } from '../../lib/api';
+
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -23,6 +24,8 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const { currentWorkspace, setCurrentWorkspace, projects, fetchProjects, workspaces, fetchWorkspaces, loading } = useWorkspaceStore();
   const currentUserId = useAuthStore(state => state.user?.id);
+  const currentUserRole = currentWorkspace?.members?.find(m => m.user?.id === currentUserId)?.role;
+  const isAdminOrOwner = currentUserRole === 'owner' || currentUserRole === 'admin';
   const {
     sidebarOpen, toggleSidebar,
     aiSidebarOpen, toggleAiSidebar
@@ -50,56 +53,35 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     if (!inviteEmail.trim() || !currentWorkspace) return;
 
     try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', inviteEmail.trim())
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!profile) {
-        setToastMessage(`User with email ${inviteEmail.trim()} not found.`);
-        setTimeout(() => setToastMessage(null), 4000);
-        return;
-      }
-
-      const alreadyMember = currentWorkspace.members.some(m => m.user.id === profile.id);
-      if (alreadyMember) {
-        setToastMessage(`${profile.name} is already a member.`);
-        setTimeout(() => setToastMessage(null), 4000);
-        return;
-      }
-
-      const { error: memErr } = await supabase
-        .from('workspace_members')
-        .insert({
-          workspace_id: currentWorkspace.id,
-          user_id: profile.id,
-          role: inviteRole
-        });
-
-      if (memErr) throw memErr;
-
-      const currentUser = useAuthStore.getState().user;
-      if (currentUser) {
-        await useActivityStore.getState().addActivity(
-          currentWorkspace.id,
-          'member_joined',
-          `${profile.name} joined the workspace`,
-          profile.id
-        );
-      }
+      const response = await backendJson<{ success: boolean; message: string; data?: { pending?: boolean; user?: { name?: string } } }>(
+        `/workspaces/${currentWorkspace.id}/invite`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            email: inviteEmail.trim(),
+            role: inviteRole,
+          }),
+        }
+      );
 
       await fetchWorkspaces();
 
       setIsInviteOpen(false);
-      setToastMessage(`Successfully added ${profile.name} to the workspace.`);
+      
+      const isPending = response.data?.pending;
+      if (isPending) {
+        setToastMessage(`Invitation email sent to ${inviteEmail.trim()}.`);
+      } else {
+        const addedName = response.data?.user?.name || inviteEmail.trim();
+        setToastMessage(`Successfully added ${addedName} to the workspace.`);
+      }
+
       setInviteEmail('');
       setInviteRole('member');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      setToastMessage('Failed to add workspace member.');
+      const message = err instanceof Error ? err.message : String(err);
+      setToastMessage(message || 'Failed to add workspace member.');
     } finally {
       setTimeout(() => setToastMessage(null), 3000);
     }
@@ -306,17 +288,19 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
 
           {/* Bottom Icons */}
           <div className="flex flex-col gap-2 w-full items-center">
-            {/* Workspace Settings / Overview */}
-            <button
-              onClick={() => navigate(`/workspace/${workspaceId}/overview`)}
-              className={clsx(
-                "w-10 h-10 flex items-center justify-center transition-all duration-150 cursor-pointer rounded-lg hover:bg-white/[0.04]",
-                location.pathname.includes('/overview') ? "text-ink bg-white/10" : "text-muted hover:text-ink"
-              )}
-              title="Workspace Settings"
-            >
-              <Settings size={18} />
-            </button>
+            {/* Workspace Settings */}
+            {isAdminOrOwner && (
+              <button
+                onClick={() => navigate(`/workspace/${workspaceId}/settings`)}
+                className={clsx(
+                  "w-10 h-10 flex items-center justify-center transition-all duration-150 cursor-pointer rounded-lg hover:bg-white/[0.04]",
+                  location.pathname.includes('/settings') ? "text-ink bg-white/10" : "text-muted hover:text-ink"
+                )}
+                title="Workspace Settings"
+              >
+                <Settings size={18} />
+              </button>
+            )}
 
             {/* Back to Dashboard */}
             <button
@@ -350,7 +334,10 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
           )}
         >
           {/* Workspace Info */}
-          <div className="p-4 border-b border-hairline">
+          <div 
+            onClick={() => navigate(`/workspace/${workspaceId}/overview`)}
+            className="p-4 border-b border-hairline cursor-pointer hover:bg-white/[0.02] transition-colors"
+          >
             <div className="flex items-center gap-3 mb-3">
               <Avatar name={currentWorkspace.name} size="lg" className="rounded-lg" />
               <div className="min-w-0">
@@ -539,7 +526,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
             </label>
             <select
               value={inviteRole}
-              onChange={e => setInviteRole(e.target.value as any)}
+              onChange={e => setInviteRole(e.target.value as 'member' | 'admin' | 'viewer')}
               className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink text-xs focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer focus:outline-none"
             >
               <option value="member" className="bg-[#0a0a0f]">Member</option>

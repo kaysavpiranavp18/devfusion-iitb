@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Workspace, Project, Notification, Task, Snippet, TaskComment, DocPage, Activity, Role } from '../types';
 import { mockFiles } from '../data/mockFiles';
 import { supabase } from '../lib/supabase';
+import { backendJson } from '../lib/api';
 
 interface AuthState {
   user: any | null;
@@ -586,12 +587,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const project = get().projects.find(p => p.id === projectId);
       if (!project) return;
 
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-
-      if (error) throw error;
+      await backendJson(`/projects/${projectId}`, {
+        method: 'DELETE'
+      });
 
       await get().fetchProjects(project.workspaceId);
       await get().fetchWorkspaces();
@@ -632,12 +630,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   deleteWorkspace: async (workspaceId) => {
     set({ loading: true });
     try {
-      const { error } = await supabase
-        .from('workspaces')
-        .delete()
-        .eq('id', workspaceId);
-
-      if (error) throw error;
+      await backendJson(`/workspaces/${workspaceId}`, {
+        method: 'DELETE'
+      });
 
       set((state) => ({
         workspaces: state.workspaces.filter(w => w.id !== workspaceId),
@@ -653,13 +648,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   removeWorkspaceMember: async (workspaceId, userId) => {
     try {
-      const { error } = await supabase
-        .from('workspace_members')
-        .delete()
-        .eq('workspace_id', workspaceId)
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await backendJson(`/workspaces/${workspaceId}/members/${userId}`, {
+        method: 'DELETE'
+      });
 
       await get().fetchWorkspaces();
     } catch (err) {

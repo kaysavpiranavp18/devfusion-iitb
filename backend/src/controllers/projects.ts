@@ -230,7 +230,21 @@ export async function deleteProject(req: AuthenticatedRequest, res: Response, ne
 
     const pRole = await checkProjectAccess(req.user.id, id);
     if (pRole !== 'owner') {
-      return res.status(403).json({ success: false, error: 'Forbidden: Only project owner can delete project' });
+      // Check if user is workspace owner or admin
+      const { data: project } = await supabase
+        .from('projects')
+        .select('workspace_id')
+        .eq('id', id)
+        .single();
+
+      if (!project) {
+        return res.status(404).json({ success: false, error: 'Project not found' });
+      }
+
+      const wsRole = await checkWorkspaceAccess(req.user.id, project.workspace_id);
+      if (wsRole !== 'owner' && wsRole !== 'admin') {
+        return res.status(403).json({ success: false, error: 'Forbidden: Only workspace owner/admin or project owner can delete project' });
+      }
     }
 
     const { error } = await supabase

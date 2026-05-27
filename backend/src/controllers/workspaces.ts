@@ -1,6 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
 import { AuthenticatedRequest } from '../types';
+import { signToken, verifyToken } from '../lib/tokens';
+import { sendInvitationEmail } from '../lib/email';
+
 
 // Helper to check user access to a workspace
 async function checkWorkspaceAccess(userId: string, workspaceId: string) {
@@ -285,15 +288,69 @@ export async function inviteWorkspaceMember(req: AuthenticatedRequest, res: Resp
       return res.status(403).json({ success: false, error: 'Forbidden: Admin access required to invite members' });
     }
 
+    // Get requester profile details
+    const { data: requesterProfile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', req.user.id)
+      .single();
+    const senderName = requesterProfile?.name || req.user.email || 'A team member';
+
+    // Get workspace details
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('name')
+      .eq('id', id)
+      .single();
+    if (wsError || !workspace) {
+      return res.status(404).json({ success: false, error: 'Workspace not found' });
+    }
+
     // Find profile of invited user
     const { data: invitedProfile, error: profileErr } = await supabase
       .from('profiles')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.trim())
       .maybeSingle();
 
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const inviteBaseUrl = process.env.INVITE_BASE_URL || clientUrl;
+
     if (profileErr || !invitedProfile) {
-      return res.status(404).json({ success: false, error: 'User with this email not found' });
+      // User does not exist, send signed token invite
+      const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!secret) {
+        return res.status(500).json({ success: false, error: 'Server configuration error' });
+      }
+
+      const token = signToken({
+        email: email.trim(),
+        workspaceId: id,
+        workspaceName: workspace.name,
+        role: role || 'member',
+        invitedBy: req.user.id,
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days expiration
+      }, secret);
+
+      const acceptLink = `${inviteBaseUrl}/invite/accept?token=${token}`;
+
+      await sendInvitationEmail({
+        to: email.trim(),
+        workspaceName: workspace.name,
+        senderName,
+        acceptLink,
+        isRegistered: false
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Invitation email sent successfully to unregistered user',
+        data: {
+          email: email.trim(),
+          role: role || 'member',
+          pending: true
+        }
+      });
     }
 
     // Check if already a member
@@ -327,18 +384,116 @@ export async function inviteWorkspaceMember(req: AuthenticatedRequest, res: Resp
         user_id: invitedProfile.id
       });
 
+    // Send notification email to registered user
+    const acceptLink = `${clientUrl}/workspace/${id}/overview`;
+    await sendInvitationEmail({
+      to: email.trim(),
+      workspaceName: workspace.name,
+      senderName,
+      acceptLink,
+      isRegistered: true
+    });
+
     return res.status(200).json({
       success: true,
+      message: 'User added and notification email sent successfully',
       data: {
         user: invitedProfile,
         role: membership.role,
-        joinedAt: membership.joined_at
+        joinedAt: membership.joined_at,
+        pending: false
       }
     });
   } catch (err) {
     next(err);
   }
 }
+
+export async function acceptWorkspaceInvite(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token is required' });
+    }
+
+    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!secret) {
+      return res.status(500).json({ success: false, error: 'Server configuration error' });
+    }
+
+    const payload = verifyToken(token, secret);
+    if (!payload) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired invitation token' });
+    }
+
+    // Fetch accepting user's profile
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
+
+    if (profileErr || !profile) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    // Email match check
+    if (profile.email.toLowerCase() !== payload.email.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: `This invitation was sent to ${payload.email}, but you are logged in as ${profile.email}.`
+      });
+    }
+
+    // Check if already a member
+    const existingRole = await checkWorkspaceAccess(profile.id, payload.workspaceId);
+    if (existingRole) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          workspaceId: payload.workspaceId,
+          message: 'You are already a member of this workspace'
+        }
+      });
+    }
+
+    // Insert workspace member
+    const { error: memError } = await supabase
+      .from('workspace_members')
+      .insert({
+        workspace_id: payload.workspaceId,
+        user_id: profile.id,
+        role: payload.role || 'member'
+      });
+
+    if (memError) {
+      return res.status(400).json({ success: false, error: memError.message || 'Failed to add workspace member' });
+    }
+
+    // Insert into activity logs!
+    await supabase
+      .from('activity_logs')
+      .insert({
+        workspace_id: payload.workspaceId,
+        type: 'member_joined',
+        message: `${profile.name || profile.email} joined the workspace`,
+        user_id: profile.id
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        workspaceId: payload.workspaceId,
+        message: 'Successfully joined workspace'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 
 export async function updateWorkspaceMemberRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {

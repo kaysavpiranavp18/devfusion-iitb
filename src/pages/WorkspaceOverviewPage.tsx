@@ -57,56 +57,34 @@ export function WorkspaceOverviewPage() {
     if (!inviteEmail.trim() || !currentWorkspace) return;
 
     try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', inviteEmail.trim())
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!profile) {
-        setToastMessage(`User with email ${inviteEmail.trim()} not found.`);
-        setTimeout(() => setToastMessage(null), 4000);
-        return;
-      }
-
-      const alreadyMember = currentWorkspace.members.some(m => m.user.id === profile.id);
-      if (alreadyMember) {
-        setToastMessage(`${profile.name || profile.email} is already a member.`);
-        setTimeout(() => setToastMessage(null), 4000);
-        return;
-      }
-
-      const { error: memErr } = await supabase
-        .from('workspace_members')
-        .insert({
-          workspace_id: currentWorkspace.id,
-          user_id: profile.id,
-          role: inviteRole
-        });
-
-      if (memErr) throw memErr;
-
-      const currentUser = useAuthStore.getState().user;
-      if (currentUser) {
-        await useActivityStore.getState().addActivity(
-          currentWorkspace.id,
-          'member_joined',
-          `${profile.name || profile.email} joined the workspace`,
-          profile.id
-        );
-      }
+      const response = await backendJson<{ success: boolean; message: string; data: any }>(
+        `/workspaces/${currentWorkspace.id}/invite`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            email: inviteEmail.trim(),
+            role: inviteRole,
+          }),
+        }
+      );
 
       await fetchWorkspaces();
 
       setIsInviteOpen(false);
-      setToastMessage(`Successfully added ${profile.name || profile.email} to the workspace.`);
+
+      const isPending = response.data?.pending;
+      if (isPending) {
+        setToastMessage(`Invitation email sent to ${inviteEmail.trim()}.`);
+      } else {
+        const addedName = response.data?.user?.name || inviteEmail.trim();
+        setToastMessage(`Successfully added ${addedName} to the workspace.`);
+      }
+
       setInviteEmail('');
       setInviteRole('member');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setToastMessage('Failed to add workspace member.');
+      setToastMessage(err?.message || 'Failed to add workspace member.');
     } finally {
       setTimeout(() => setToastMessage(null), 3000);
     }

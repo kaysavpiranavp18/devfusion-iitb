@@ -18,6 +18,8 @@ import { ProjectActivityPage } from './pages/ProjectActivityPage';
 import { ProjectEditorPage } from './pages/ProjectEditorPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { PaymentsPage } from './pages/PaymentsPage';
+import { InviteAcceptPage } from './pages/InviteAcceptPage';
+import { WorkspaceSettingsPage } from './pages/WorkspaceSettingsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
@@ -44,6 +46,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
     </div>
   );
+}
+
+function PostLoginRedirect() {
+  const pendingToken = localStorage.getItem('pending_invite_token');
+  if (pendingToken) {
+    return <Navigate to={`/invite/accept?token=${pendingToken}`} replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
 }
 
 export default function App() {
@@ -145,9 +155,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
-        <Route path="/onboarding" element={user ? <Navigate to="/dashboard" replace /> : <OnboardingPage />} />
+        <Route path="/onboarding" element={user ? <PostLoginRedirect /> : <OnboardingPage />} />
         <Route path="/login" element={<Navigate to="/onboarding" replace />} />
         <Route path="/register" element={<Navigate to="/onboarding" replace />} />
+        <Route path="/invite/accept" element={<InviteAcceptPage />} />
 
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
@@ -157,6 +168,7 @@ export default function App() {
 
         {/* Workspace routes */}
         <Route path="/workspace/:workspaceId/overview" element={<ProtectedRoute><AppLayout><WorkspaceOverviewPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/workspace/:workspaceId/settings" element={<ProtectedRoute><AppLayout><WorkspaceSettingsPage /></AppLayout></ProtectedRoute>} />
 
         {/* Project routes */}
         <Route path="/workspace/:workspaceId/project/:projectId/board" element={<ProtectedRoute><AppLayout><ProjectBoardPage /></AppLayout></ProtectedRoute>} />
@@ -167,9 +179,10 @@ export default function App() {
         <Route path="/workspace/:workspaceId/project/:projectId/editor" element={<ProtectedRoute><AppLayout><ProjectEditorPage /></AppLayout></ProtectedRoute>} />
 
         {/* Default redirect */}
-        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />} />
-        <Route path="*" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />} />
+        <Route path="/" element={user ? <PostLoginRedirect /> : <Navigate to="/onboarding" replace />} />
+        <Route path="*" element={user ? <PostLoginRedirect /> : <Navigate to="/onboarding" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
+

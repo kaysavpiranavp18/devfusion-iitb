@@ -18,6 +18,8 @@ import snippetsRouter from './routes/snippets';
 import wikiRouter from './routes/wiki';
 import activityRouter from './routes/activity';
 import notificationsRouter from './routes/notifications';
+import aiRouter from './routes/ai';
+
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +49,8 @@ app.use('/api/snippets', snippetsRouter);
 app.use('/api/wiki', wikiRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/ai', aiRouter);
+
 
 // Health check
 app.get('/health', (req, res) => {
