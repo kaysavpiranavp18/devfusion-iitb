@@ -276,3 +276,5 @@ DevCollab utilizes a structured PostgreSQL database hosted on Supabase:
    npm run dev
    ```
    *Vite will launch on [http://localhost:5173](http://localhost:5173).*
+
+Built for DevFusion 2.O | The Developers Hackathon
